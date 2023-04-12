@@ -12,7 +12,7 @@ import io
 from collections import deque
 import scripts.berry_utility as utilityb
 import cv2
-import scripts.opitcal_flow_raft as raft
+import scripts.optical_flow_raft as raft
 
 # Replace with the actual path to your image file and folder
 x_path = "./init.png"
