@@ -1,0 +1,293 @@
+import cv2
+import numpy as np
+import os
+import sys
+import torch
+from PIL import Image
+import matplotlib.pyplot as plt
+import torchvision.transforms.functional as F
+from torchvision.io import read_video, read_image, ImageReadMode
+from torchvision.models.optical_flow import Raft_Large_Weights
+from torchvision.models.optical_flow import raft_large
+from torchvision.io import write_jpeg
+import torchvision.transforms as T
+import scripts.berry_utility as utilityb
+import tempfile
+from pathlib import Path
+from urllib.request import urlretrieve
+import tensorflow as tf
+from scipy.interpolate import LinearNDInterpolator
+from imageio import imread, imwrite
+from torchvision.utils import flow_to_image
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = raft_large(weights=Raft_Large_Weights.DEFAULT, progress=False).to(device)
+model = model.eval()
+
+#no clue if this works
+def flow_to_rgb(flow):
+    """
+    Convert optical flow to RGB image
+    
+    :param flow: optical flow map
+    :return: RGB image
+    
+    """
+    # forcing conversion to float32 precision
+    flow = flow.numpy()
+    hsv = np.zeros(flow.shape, dtype=np.uint8)
+    hsv[..., 1] = 255
+
+    mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
+    hsv[..., 0] = ang * 180 / np.pi / 2
+    hsv[..., 2] = cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX)
+    #bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+    #cv2.imshow("colored flow", bgr)
+    #cv2.waitKey(0)
+    #cv2.destroyAllWindows()
+
+    return hsv
+
+def write_flo(flow, filename):
+    """
+    Write optical flow in Middlebury .flo format
+    
+    :param flow: optical flow map
+    :param filename: optical flow file path to be saved
+    :return: None
+    
+    from https://github.com/liruoteng/OpticalFlowToolkit/
+    
+    """
+    # forcing conversion to float32 precision
+    flow = flow.cpu().data.numpy()
+    flow = flow.astype(np.float32)
+    f = open(filename, 'wb')
+    magic = np.array([202021.25], dtype=np.float32)
+    (height, width) = flow.shape[0:2]
+    w = np.array([width], dtype=np.int32)
+    h = np.array([height], dtype=np.int32)
+    magic.tofile(f)
+    w.tofile(f)
+    h.tofile(f)
+    flow.tofile(f)
+    f.close()
+
+
+#def infer_old (frameA,frameB)
+
+def infer(frameA, frameB):
+    #video_url = "https://download.pytorch.org/tutorial/pexelscom_pavel_danilyuk_basketball_hd.mp4"
+    #video_path = Path(tempfile.mkdtemp()) / "basketball.mp4"
+    #_ = urlretrieve(video_url, video_path)
+    model = raft_large(weights=Raft_Large_Weights.DEFAULT, progress=False).to(device)
+    model = model.eval()
+   
+
+    #tensor1 = torch.Tensor(frameA)
+    #tensor2 = torch.Tensor(frameB)
+    transform = T.ToTensor()
+
+    img1_batch = transform(frameA)
+    img2_batch = transform(frameB)
+    img1_batch = torch.stack([img1_batch])
+    img2_batch = torch.stack([img2_batch])
+    weights = Raft_Large_Weights.DEFAULT
+    transforms = weights.transforms()
+
+
+    def preprocess(img1_batch, img2_batch):
+        img1_batch = F.resize(img1_batch, size=[512, 512])
+        img2_batch = F.resize(img2_batch, size=[512, 512])
+        return transforms(img1_batch, img2_batch)
+
+    #print(img1_batch)
+    #print(img2_batch)
+    img1_batch, img2_batch = preprocess(img1_batch, img2_batch)
+
+    return img1_batch,img2_batch
+ 
+
+
+def apply_flow_based_on_images (image1_path, image2_path, provided_image_path,max_dimension, index,output_folder):
+    image1 =  resize_image(utilityb.base64_to_texture(image1_path),max_dimension)
+    image2 =  resize_image(utilityb.base64_to_texture(image2_path),max_dimension)
+
+  #  image1 =  utilityb.base64_to_texture(image1_path),max_dimension
+ #   image2 =  utilityb.base64_to_texture(image2_path),max_dimension
+#    provided_image = read_image(provided_image_path)
+    provided_image = utilityb.base64_to_texture(provided_image_path)
+    provided_image = resize_image(provided_image, max_dimension)
+    
+
+
+    img1_batch,img2_batch = infer(image1,image2)
+    
+    list_of_flows = model(img1_batch.to(device), img2_batch.to(device))
+    predicted_flows = list_of_flows[-1]
+    predicted_flow = list_of_flows[-1][0]
+    flow_img = flow_to_image(predicted_flow).to("cpu")
+    #flo_file = write_flo(predicted_flow, "flofile.flo")
+    
+    #write_jpeg(flow_img, f"./flow/predicted_flow{index}.jpg")
+    #write_jpeg(flow_img, os.path.join("temp", f'flow_{index + 1}.flo'))
+
+    #print(flow.shape)
+    #warped_image = apply_flow_to_image_try3(provided_image,predicted_flow)
+    warped_image,unused_mask,white_pixels = apply_flow_to_image_with_unused_mask(provided_image,predicted_flow)
+
+
+
+
+    warped_image_path = os.path.join(output_folder, f'warped_provided_image_{index + 1}.png')
+    save_image(warped_image, warped_image_path)
+    return warped_image_path,predicted_flow,unused_mask,white_pixels,flow_img
+
+def apply_flow_to_image(image, flow):
+    """
+    Apply optical flow transforms to an input image
+    
+    :param image: input image
+    :param flow: optical flow map
+    :return: warped image
+    
+    """
+    
+    # forcing conversion to float32 precision
+    #flow = flow.numpy()
+    flow = flow.astype(np.float32)
+
+    # Get the height and width of the input image
+    height, width = image.shape[:2]
+
+    # Create a grid of (x, y) coordinates
+    x, y = np.meshgrid(np.arange(width), np.arange(height))
+
+    # Apply the optical flow to the coordinates
+    x_warped = (x + flow[..., 0]).astype(np.float32)
+    y_warped = (y + flow[..., 1]).astype(np.float32)
+
+    # Remap the input image using the warped coordinates
+    warped_image = cv2.remap(image, x_warped, y_warped, cv2.INTER_LINEAR)
+
+    return warped_image
+
+def warp_image(image, flow):
+    h, w = 512,512
+    flow_map = np.array([[x, y] for y in range(h) for x in range(w)], dtype=np.float32) - flow.reshape(-1, 2)
+    flow_map = flow_map.reshape(h, w, 2).astype(np.float32)  # Ensure the flow_map is in the correct format
+
+    # Clip the flow_map to the image bounds
+    flow_map[:, :, 0] = np.clip(flow_map[:, :, 0], 0, w - 1)
+    flow_map[:, :, 1] = np.clip(flow_map[:, :, 1], 0, h - 1)
+
+    warped_image = cv2.remap(image, flow_map, None, cv2.INTER_LANCZOS4    )
+    return warped_image
+
+
+def raft_flow_to_apply_v2(flow,image):
+
+
+    # Squeeze the flow array to remove the first dimension
+    flow_array = tf.squeeze(flow, axis=0)
+    flow_array = np.transpose(flow_array, (1, 2, 0))
+    # Normalize flow_array to the range [0, 1]
+    image_float = tf.cast(image, dtype=tf.float32)
+
+    # Warp the image using the flow map
+    warped_image = tf.image.dense_image_warp(image_float, flow_array)
+
+    # Convert the warped_image tensor back to uint8
+    warped_image_uint8 = tf.cast(warped_image, dtype=tf.uint8)
+
+    return warped_image_uint8
+
+
+
+def save_image(image, file_path):
+    cv2.imwrite(file_path, image)
+
+def resize_image(image, max_dimension):
+    h, w = image.shape[:2]
+    aspect_ratio = float(w) / float(h)
+    if h > w:
+        new_height = max_dimension
+        new_width = int(new_height * aspect_ratio)
+    else:
+        new_width = max_dimension
+        new_height = int(new_width / aspect_ratio)
+    resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+    return resized_image
+
+def apply_flow_to_image_try3(image,flow):
+    """
+    Apply an optical flow tensor to a NumPy image by moving the pixels based on the flow.
+    
+    Args:
+        image (np.ndarray): Input image with shape (height, width, channels).
+        flow (np.ndarray): Optical flow tensor with shape (height, width, 2).
+        
+    Returns:
+        np.ndarray: Warped image with the same shape as the input image.
+    """
+    height, width, _ = image.shape
+    x_coords, y_coords = np.meshgrid(np.arange(width), np.arange(height))
+    coords = np.stack([x_coords, y_coords], axis=-1).astype(np.float32)
+
+    # Add the flow to the original coordinates
+    if isinstance(flow, torch.Tensor):
+        flow = flow.detach().cpu().numpy()
+    flow = flow.transpose(1, 2, 0)
+    new_coords = np.subtract(coords, flow)
+
+
+    # Map the new coordinates to the pixel values in the original image
+    warped_image = cv2.remap(image, new_coords, None, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+
+    return warped_image
+
+
+def apply_flow_to_image_with_unused_mask(image, flow):
+    """
+    Apply an optical flow tensor to a NumPy image by moving the pixels based on the flow and create a mask where the remap meant there was nothing there.
+    
+    Args:
+        image (np.ndarray): Input image with shape (height, width, channels).
+        flow (np.ndarray): Optical flow tensor with shape (height, width, 2).
+        
+    Returns:
+        tuple: Warped image with the same shape as the input image, and a mask where the remap meant there was nothing there.
+    """
+    height, width, _ = image.shape
+    x_coords, y_coords = np.meshgrid(np.arange(width), np.arange(height))
+    coords = np.stack([x_coords, y_coords], axis=-1).astype(np.float32)
+
+    # Add the flow to the original coordinates
+    if isinstance(flow, torch.Tensor):
+        flow = flow.detach().cpu().numpy()
+    flow = flow.transpose(1, 2, 0)
+    new_coords = np.subtract(coords, flow)
+    avg = utilityb.avg_edge_pixels(image)
+    warped_image = cv2.remap(image, new_coords, None, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+
+    # Create a mask where the remap meant there was nothing there
+    mask = utilityb.create_hole_mask(flow)
+    white_pixels = np.sum(mask > 0)
+    #print(f'white pixels {white_pixels}')
+
+    #remove later
+    #warped_image = warp_image2(image,flow)
+
+    return warped_image, mask,white_pixels
+
+def warp_image2(image, flow):
+    h, w = image.shape[:2]
+    flow_map = np.array([[x, y] for y in range(h) for x in range(w)], dtype=np.float32) - flow.reshape(-1, 2)
+    flow_map = flow_map.reshape(h, w, 2).astype(np.float32)  # Ensure the flow_map is in the correct format
+
+    # Clip the flow_map to the image bounds
+    flow_map[:, :, 0] = np.clip(flow_map[:, :, 0], 0, w - 1)
+    flow_map[:, :, 1] = np.clip(flow_map[:, :, 1], 0, h - 1)
+
+    warped_image = cv2.remap(image, flow_map, None, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT, borderValue=(0, 0, 0)    )
+    return warped_image
