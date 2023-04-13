@@ -77,15 +77,14 @@ def write_flo(flow, filename):
 #def infer_old (frameA,frameB)
 
 def infer(frameA, frameB):
-    #video_url = "https://download.pytorch.org/tutorial/pexelscom_pavel_danilyuk_basketball_hd.mp4"
-    #video_path = Path(tempfile.mkdtemp()) / "basketball.mp4"
-    #_ = urlretrieve(video_url, video_path)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = raft_large(weights=Raft_Large_Weights.DEFAULT, progress=False).to(device)
     model = model.eval()
-   
 
-    #tensor1 = torch.Tensor(frameA)
-    #tensor2 = torch.Tensor(frameB)
+    # Check if both frames have the same size
+    if frameA.size != frameB.size:
+        raise ValueError("Both input frames must have the same size")
+
     transform = T.ToTensor()
 
     img1_batch = transform(frameA)
@@ -95,29 +94,25 @@ def infer(frameA, frameB):
     weights = Raft_Large_Weights.DEFAULT
     transforms = weights.transforms()
 
-
     def preprocess(img1_batch, img2_batch):
-        img1_batch = F.resize(img1_batch, size=[512, 512])
-        img2_batch = F.resize(img2_batch, size=[512, 512])
         return transforms(img1_batch, img2_batch)
 
-    #print(img1_batch)
-    #print(img2_batch)
     img1_batch, img2_batch = preprocess(img1_batch, img2_batch)
 
-    return img1_batch,img2_batch
+    return img1_batch, img2_batch
  
 
 
 def apply_flow_based_on_images (image1_path, image2_path, provided_image_path,max_dimension, index,output_folder):
     image1 =  resize_image(utilityb.base64_to_texture(image1_path),max_dimension)
-    image2 =  resize_image(utilityb.base64_to_texture(image2_path),max_dimension)
+    h, w = image1.shape[:2]
+    image2 =  cv2.resize(utilityb.base64_to_texture(image2_path), (w,h), interpolation=cv2.INTER_LINEAR)
 
   #  image1 =  utilityb.base64_to_texture(image1_path),max_dimension
  #   image2 =  utilityb.base64_to_texture(image2_path),max_dimension
 #    provided_image = read_image(provided_image_path)
     provided_image = utilityb.base64_to_texture(provided_image_path)
-    provided_image = resize_image(provided_image, max_dimension)
+    provided_image = cv2.resize(provided_image, (w,h), interpolation=cv2.INTER_LINEAR)
     
 
 
@@ -173,7 +168,8 @@ def apply_flow_to_image(image, flow):
     return warped_image
 
 def warp_image(image, flow):
-    h, w = 512,512
+    h, w = image.shape[:2]
+
     flow_map = np.array([[x, y] for y in range(h) for x in range(w)], dtype=np.float32) - flow.reshape(-1, 2)
     flow_map = flow_map.reshape(h, w, 2).astype(np.float32)  # Ensure the flow_map is in the correct format
 
@@ -181,7 +177,7 @@ def warp_image(image, flow):
     flow_map[:, :, 0] = np.clip(flow_map[:, :, 0], 0, w - 1)
     flow_map[:, :, 1] = np.clip(flow_map[:, :, 1], 0, h - 1)
 
-    warped_image = cv2.remap(image, flow_map, None, cv2.INTER_LANCZOS4    )
+    warped_image = cv2.remap(image, flow_map, None, cv2.INTER_LANCZOS4)
     return warped_image
 
 

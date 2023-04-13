@@ -34,19 +34,26 @@ def split_into_batches(frames, batch_size):
 
 def create_square_texture(frames, max_size):
     num_frames = len(frames)
-    frames_per_row = math.ceil(math.sqrt(num_frames))
-    frame_size = max_size // frames_per_row
 
-    actual_texture_size = frame_size * frames_per_row
-    texture = np.zeros((actual_texture_size, actual_texture_size, 3), dtype=np.uint8)
+    # Calculate the average aspect ratio of the input frames
+    aspect_ratios = [frame.shape[1] / frame.shape[0] for frame in frames if frame is not None and frame.size != 0]
+    avg_aspect_ratio = sum(aspect_ratios) / len(aspect_ratios)
+
+    frames_per_row = math.ceil(math.sqrt(num_frames))
+    frame_width = max_size // frames_per_row
+    frame_height = int(frame_width / avg_aspect_ratio)
+
+    actual_texture_width = frame_width * frames_per_row
+    actual_texture_height = frame_height * math.ceil(num_frames / frames_per_row)
+    texture = np.zeros((actual_texture_height, actual_texture_width, 3), dtype=np.uint8)
 
     for i, frame in enumerate(frames):
         if frame is not None and not frame.size == 0:
-            resized_frame = cv2.resize(frame, (frame_size, frame_size), interpolation=cv2.INTER_AREA)
+            resized_frame = cv2.resize(frame, (frame_width, frame_height), interpolation=cv2.INTER_AREA)
             row, col = i // frames_per_row, i % frames_per_row
-            texture[row * frame_size:(row + 1) * frame_size, col * frame_size:(col + 1) * frame_size] = resized_frame
+            texture[row * frame_height:(row + 1) * frame_height, col * frame_width:(col + 1) * frame_width] = resized_frame
 
-    return texture, frame_size
+    return texture
 
 def split_frames_into_big_batches(frames, batch_size, border):
     """
@@ -71,21 +78,28 @@ def split_frames_into_big_batches(frames, batch_size, border):
         batches.append(frames[start_idx:end_idx])
     return batches
 
-def split_square_texture(texture, num_frames,_smol_resolution):
+def split_square_texture(texture, num_frames, _smol_resolution):
+    texture_height, texture_width = texture.shape[:2]
+    texture_aspect_ratio = float(texture_width) / float(texture_height)
+    
     frames_per_row = int(math.ceil(math.sqrt(num_frames)))
-    frame_size = texture.shape[0] // frames_per_row
+    frame_height = texture_height // frames_per_row
+    frame_width = int(frame_height * texture_aspect_ratio)
+    
+    _smol_frame_height = _smol_resolution
+    _smol_frame_width = int(_smol_frame_height * texture_aspect_ratio)
+
     frames = []
-    print(num_frames)
 
     for i in range(num_frames):
         row, col = i // frames_per_row, i % frames_per_row
-        frame = texture[row * frame_size:(row + 1) * frame_size, col * frame_size:(col + 1) * frame_size]
+        frame = texture[row * frame_height:(row + 1) * frame_height, col * frame_width:(col + 1) * frame_width]
 
         if not frame.size == 0:
-            resized_frame = cv2.resize(frame, (_smol_resolution, _smol_resolution), interpolation=cv2.INTER_AREA)
+            resized_frame = cv2.resize(frame, (_smol_frame_width, _smol_frame_height), interpolation=cv2.INTER_AREA)
             frames.append(resized_frame)
         else:
-            frames.append(np.zeros((_smol_resolution, _smol_resolution, 3), dtype=np.uint8))
+            frames.append(np.zeros((_smol_frame_height, _smol_frame_width, 3), dtype=np.uint8))
 
     return frames
 
@@ -117,7 +131,7 @@ def generate_square_from_video(video_path, fps, batch_size,resolution,size_size)
     print("Number of batches:", len(batches))
     first_frames = [batch[0] for batch in batches]  
     
-    square_texture, original_size = create_square_texture(first_frames, resolution)
+    square_texture = create_square_texture(first_frames, resolution)
     #save_square_texture(square_texture, "./result/original.png")
     
     return square_texture
@@ -146,7 +160,7 @@ def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size
         print("Number of batches:", len(batches))
         first_frames = [batch[0] for batch in batches]  
         
-        square_texture, original_size = create_square_texture(first_frames, resolution)
+        square_texture = create_square_texture(first_frames, resolution)
         save_square_texture(square_texture, os.path.join(input_folder_loc, f"input{i}.png"))
         square_textures.append(square_texture)
     
@@ -181,10 +195,15 @@ def blend_images(img1, img2, alpha=0.5):
 
 def merge_image_batches(image_batches, border):
     merged_batches = []
+    height, width = image_batches[0][0].shape[:2]
 
     for i in range(len(image_batches) - 1):
         current_batch = image_batches[i]
         next_batch = image_batches[i + 1]
+        for i in range(len(current_batch)):
+            current_batch[i] = cv2.resize(current_batch[i], (width, height))
+        for i in range(len(next_batch)):
+            next_batch[i] = cv2.resize(next_batch[i], (width, height))
 
         # If it's not the first batch, remove the blended images from the current batch
         if i > 0:
@@ -197,8 +216,7 @@ def merge_image_batches(image_batches, border):
         # Blend the border images between the current and next batch
         for j in range(border):
             alpha = float(j) / float(border)
-            blended_image = cv2.addWeighted(current_batch[len(current_batch) - border + j], 1 - alpha,
-                                            next_batch[j], alpha, 0)
+            blended_image = cv2.addWeighted(current_batch[len(current_batch) - border + j], 1 - alpha, next_batch[j], alpha, 0)
             merged_batches.append(blended_image)
 
     # Add remaining images from the last batch
@@ -214,10 +232,11 @@ def process_video_batch (video_path, fps, per_side, batch_size, fillindenoise, e
     bigbatches = split_frames_into_big_batches(frames, per_batch_limmit,border)
     bigprocessedbatches = []
     for i , batch in enumerate(bigbatches):
-        new_batch = process_video(batch, fps, batch_size, fillindenoise, edgedenoise, _smol_resolution,square_textures[i])
-        bigprocessedbatches.append(new_batch)
-        for a, image in enumerate(new_batch):
-            Image.fromarray(image).save(os.path.join(output_folder, f"result/output{a + (len(new_batch) * i)}.png"))
+        if i < len(square_textures):
+            new_batch = process_video(batch, fps, batch_size, fillindenoise, edgedenoise, _smol_resolution,square_textures[i])
+            bigprocessedbatches.append(new_batch)
+            for a, image in enumerate(new_batch):
+                Image.fromarray(image).save(os.path.join(output_folder, f"result/output{a + (len(new_batch) * i)}.png"))
     
     just_frame_groups = []
     for i in range(len(bigprocessedbatches)):
@@ -396,15 +415,24 @@ def pil_images_to_video(images, output_file, fps=24):
     :param output_file: str, path to the output video file (e.g., 'output.mp4')
     :param fps: int, frames per second (default: 24)
     """
+
+    
+
     pil_images = []
     for image in images:
-        pil_images.append(Image.fromarray(image))
-
+        newimg = Image.fromarray(image)
+        pil_images.append(newimg)
+    video_size = pil_images[0].size
+    better_pil_images = []
+    for image in pil_images:
+        better_pil_images.append(image.resize(video_size))
+            
+    
     # Create a temporary directory to store the image files
     with tempfile.TemporaryDirectory() as temp_dir:
         # Save images as temporary files
         image_paths = []
-        for i, image in enumerate(pil_images):
+        for i, image in enumerate(better_pil_images):
             temp_image_path = os.path.join(temp_dir, f'image_{i:04d}.png')
             image.save(temp_image_path, format='PNG')
             image_paths.append(temp_image_path)
@@ -485,11 +513,11 @@ def blend_batches(batch_before, current_batch,resolution, blend_start_ratio=0.9,
     decoded_batch_before = [cv2.cvtColor(utilityb.base64_to_texture(frame), cv2.COLOR_BGR2RGB) for frame in batch_before]
     decoded_current_batch = [cv2.cvtColor(utilityb.base64_to_texture(frame), cv2.COLOR_BGR2RGB) for frame in current_batch]
 
-    target_width, target_height = resolution, resolution
-
+    #target_width, target_height = resolution, resolution
+    height, width = decoded_batch_before[0].shape[:2]
     # Resize the images in decoded_batch_before and decoded_current_batch
-    decoded_batch_before = [cv2.resize(img, (target_width, target_height)) for img in decoded_batch_before]
-    decoded_current_batch = [cv2.resize(img, (target_width, target_height)) for img in decoded_current_batch]
+    decoded_batch_before = [cv2.resize(img, (width,height)) for img in decoded_batch_before]
+    decoded_current_batch = [cv2.resize(img,  (width,height)) for img in decoded_current_batch]
 
     output_folder = "moretemp"
     if not os.path.exists(output_folder):

@@ -271,7 +271,7 @@ def create_diffusing_tab ():
                             with gr.Row():
                                 fps = gr.Number(label="FPS",value=10,precision=1)
                                 per_side = gr.Number(label="per side",value=3,precision=1)
-                                output_resolution = gr.Number(label="output resolution",value=512,precision=1)
+                                output_resolution = gr.Number(label="output resolution",value=1024,precision=1)
                                 batch_size = gr.Number(label="batch size",value=10,precision=1)
                             with gr.Row():
                                 runButton = gr.Button("run", elem_id="run_button")
@@ -315,7 +315,7 @@ def create_batch_tab ():
                             with gr.Row():
                                 fps = gr.Number(label="FPS",value=10,precision=1)
                                 per_side = gr.Number(label="per side",value=3,precision=1)
-                                output_resolution = gr.Number(label="output resolution",value=512,precision=1)
+                                output_resolution = gr.Number(label="output resolution",value=1024,precision=1)
                                 batch_size = gr.Number(label="batch size",value=5,precision=1)
                                 max_frames = gr.Number(label="max frames",value=100,precision=1)
                                 border_frames = gr.Number(label="border frames",value=10,precision=1)
