@@ -37,5 +37,6 @@ Output Resolution (in the batch warp tab): the maximum resolution on any side of
 - add a check to see if the output folder was added.
 - fix that weird shutdown error it gives after running
 - fix the thing it does where it sometimes generates an extra tab when making batches 
+- hook up to the api.
 
 Thanks to RAFT for the optical flow system.
