@@ -34,13 +34,17 @@ Batch Folder: If you're generating a batch of plates, just specify a empty folde
 Output Resolution (in the batch warp tab): the maximum resolution on any side of the output video.
 
 FAQ:
+
 Q: my video has smearing
-A: use a higher fps and/or batchnumber, the closer together the keyframes the less artifacts.
+
+A: use a higher fps and/or lower batchnumber, the closer together the keyframes the less artifacts.
 
 Q: my video jumps about
+
 A: make sure to set the plate resolution to a multiple of 8 and your frame number and diffuse at that resolution
 
 Q: the video goes blurry at the end
+
 A: remove the last non fully sized plate before processing.
 
 #TODO
