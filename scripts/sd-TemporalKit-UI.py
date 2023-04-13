@@ -262,7 +262,7 @@ def create_diffusing_tab ():
         with gr.Row():
             with gr.Tabs(elem_id="mode_TemporalKit"):
                 with gr.Row():
-                    with gr.Tab(elem_id="input_diffuse", label="Pre-Processing"):
+                    with gr.Tab(elem_id="input_diffuse", label="Generate"):
                         with gr.Column():
                             with gr.Row():
                                 input_image = gr.Image(label="Input_Image", elem_id="input_page2")
@@ -307,7 +307,7 @@ def create_batch_tab ():
         with gr.Row():
             with gr.Tabs(elem_id="mode_TemporalKit"):
                 with gr.Row():
-                    with gr.Tab(elem_id="input_diffuse", label="Pre-Processing"):
+                    with gr.Tab(elem_id="input_diffuse", label="Generate Batch"):
                         with gr.Column():
                             with gr.Row():
                                 input_folder = gr.Textbox(label="Input Folder",placeholder="the whole folder, generated before, not just the output folder")
