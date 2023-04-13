@@ -120,7 +120,9 @@ def numpy_array_to_temp_url(img_array):
     filename = 'generatedsquare.png'
     extension_path = os.path.abspath(__file__)
     extension_dir =  os.path.dirname(os.path.dirname(extension_path))
-    extension_folder = os.path.join(extension_dir,"squares")    
+    extension_folder = os.path.join(extension_dir,"squares")  
+    if not os.path.exists(extension_folder):
+        os.makedirs(extension_folder)  
     # create a path for the temporary file
     file_path = os.path.join(extension_folder, filename)
 
