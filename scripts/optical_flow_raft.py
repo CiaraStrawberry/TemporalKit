@@ -104,7 +104,10 @@ def infer(frameA, frameB):
 
 
 def apply_flow_based_on_images (image1_path, image2_path, provided_image_path,max_dimension, index,output_folder):
-    image1 =  resize_image(utilityb.base64_to_texture(image1_path),max_dimension)
+    w,h = get_target_size(utilityb.base64_to_texture(image1_path), max_dimension)
+    w =  int(w / 8) * 8
+    h =  int(h / 8) * 8
+    image1 =  resize_image(utilityb.base64_to_texture(image1_path),h,w)
     h, w = image1.shape[:2]
     image2 =  cv2.resize(utilityb.base64_to_texture(image2_path), (w,h), interpolation=cv2.INTER_LINEAR)
 
@@ -117,7 +120,6 @@ def apply_flow_based_on_images (image1_path, image2_path, provided_image_path,ma
 
 
     img1_batch,img2_batch = infer(image1,image2)
-    
     list_of_flows = model(img1_batch.to(device), img2_batch.to(device))
     predicted_flows = list_of_flows[-1]
     predicted_flow = list_of_flows[-1][0]
@@ -203,7 +205,11 @@ def raft_flow_to_apply_v2(flow,image):
 def save_image(image, file_path):
     cv2.imwrite(file_path, image)
 
-def resize_image(image, max_dimension):
+def resize_image(image, new_height,new_width):
+    resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+    return resized_image
+
+def get_target_size (image,max_dimension):
     h, w = image.shape[:2]
     aspect_ratio = float(w) / float(h)
     if h > w:
@@ -212,9 +218,9 @@ def resize_image(image, max_dimension):
     else:
         new_width = max_dimension
         new_height = int(new_width / aspect_ratio)
-    resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
-    return resized_image
+    return new_width,new_height
 
+        
 def apply_flow_to_image_try3(image,flow):
     """
     Apply an optical flow tensor to a NumPy image by moving the pixels based on the flow.
