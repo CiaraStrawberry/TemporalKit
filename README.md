@@ -7,8 +7,7 @@ https://twitter.com/CiaraRowles1/status/1645923461343363072
 
 And a batch demonstration here:
 
-https://mobile.twitter.com/CiaraRowles1/status/1642678638586863617
-
+https://mobile.twitter.com/CiaraRowles1/status/1646458056803250178
 
 
 The values in the extension are as follows
@@ -27,7 +26,7 @@ Max Frames: when generating a folder of plates, this gets how many frames at the
 
 Border Frames: every batch generated plate will contain this many frames from the next plate and blend between them.
 
-Batch Folder: If you're generating a batch of plates, just specify a empty folder and on clicking run, it will populate it with the relevant folders and files, all you need to do is go to img2img batch processing in  original sd, enter the newly create input folder as the input, the newly created output folder as the output, move back to the temporal-kit Batch-Warp Tab, put in the whole folder directory and clear read and it will set everything up.
+Batch Folder: If you're generating a batch of plates, just specify a empty folder and on clicking run, it will populate it with the relevant folders and files, all you need to do is go to img2img batch processing in  original sd, enter the newly create input folder as the input, the newly created output folder as the output, generate, move back to the temporal-kit Batch-Warp Tab, put in the whole folder directory and click read and it will set everything up.
 
 Output Resolution (in the batch warp tab): the maximum resolution on any side of the output video.
 
@@ -36,5 +35,7 @@ Output Resolution (in the batch warp tab): the maximum resolution on any side of
 - constrain the input resolutions to multiples of 3 and 8
 - get the img2img button working with batch processing.
 - add a check to see if the output folder was added.
+- fix that weird shutdown error it gives after running
+- fix the thing it does where it sometimes generates an extra tab when making batches 
 
 Thanks to RAFT for the optical flow system.
