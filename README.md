@@ -55,5 +55,6 @@ A: remove the last non fully sized plate before processing.
 - fix that weird shutdown error it gives after running
 - fix the thing it does where it sometimes generates an extra tab when making batches 
 - hook up to the api.
+- ebsynth and flowmaps from game engine export\import support
 
 Thanks to RAFT for the optical flow system.
