@@ -286,7 +286,7 @@ def filter_mask(mask, kernel_size=4, threshold_ratio=0.3,grayscale_intensity=1.0
     # Filter the mask using the calculated threshold
     filtered_mask = np.where(conv_result >= threshold, mask, 0)
 
-    grayscale_mask = np.where(conv_result >= threshold, int(255 * grayscale_intensity), 0)
+    grayscale_mask = np.where(conv_result >= threshold, int(255 * grayscale_intensity), 0).astype(np.uint8)
 
     # Combine the filtered mask and grayscale mask
     combined_mask = np.maximum(filtered_mask, grayscale_mask)
