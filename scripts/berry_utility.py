@@ -220,10 +220,14 @@ def texture_to_base64(texture):
 
     return img_base64
 
+# thanks to https://github.com/jinnsp ❤
 def base64_to_texture(base64_string):
-    decoded_data = base64.b64decode(base64_string)
-    buffer = BytesIO(decoded_data)
-    image = Image.open(buffer)
+    if base64_string.lower().endswith('png'):
+        image = Image.open(base64_string)
+    else:
+        decoded_data = base64.b64decode(base64_string)
+        buffer = BytesIO(decoded_data)
+        image = Image.open(buffer)
     texture = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
     return texture
 
@@ -286,7 +290,8 @@ def filter_mask(mask, kernel_size=4, threshold_ratio=0.3,grayscale_intensity=1.0
     # Filter the mask using the calculated threshold
     filtered_mask = np.where(conv_result >= threshold, mask, 0)
 
-    grayscale_mask = np.where(conv_result >= threshold, int(255 * grayscale_intensity), 0)
+    # thanks to https://github.com/jinnsp ❤
+    grayscale_mask = np.where(conv_result >= threshold, int(255 * grayscale_intensity), 0).astype(np.uint8)
 
     # Combine the filtered mask and grayscale mask
     combined_mask = np.maximum(filtered_mask, grayscale_mask)
