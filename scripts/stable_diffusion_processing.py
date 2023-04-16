@@ -105,14 +105,14 @@ def prepare_request(allpaths,index,last_stylized,resolution,seed,last_mask,last_
     if diffuse:
         combined_mask = utilityb.combine_masks([unused_mask,utilityb.scale_mask_intensity(last_mask,0.6),utilityb.scale_mask_intensity(last_last_mask,0.3),hed])
     #combine_mask_no_hed = utilityb.combine_masks([unused_mask,utilityb.scale_mask_intensity(last_mask,0.6),utilityb.scale_mask_intensity(last_last_mask,0.3)])
-    if whitepixels > 0:
+    #if whitepixels > 0:
         #replaced = utilityb.replace_masked_area(flow,index,warped_path,unused_mask,warped_path)
-        if target is not None and index > 1:
-            replaced = utilityb.replaced_mask_from_other_direction_debug(index,Image.open(warped_path).convert("RGBA"),unused_mask,flow,Image.fromarray(cv2.cvtColor(utilityb.base64_to_texture( target), cv2.COLOR_BGR2RGB)).convert("RGBA"),forwards)
-        else:
-            replaced = utilityb.replaced_mask_from_other_direction_debug(index,Image.open(warped_path).convert("RGBA"),unused_mask,flow,None)
+    if target is not None and index > 1:
+        replaced = utilityb.replaced_mask_from_other_direction_debug(index,Image.open(warped_path).convert("RGBA"),unused_mask,flow,Image.fromarray(cv2.cvtColor(utilityb.base64_to_texture( target), cv2.COLOR_BGR2RGB)).convert("RGBA"),forwards)
     else:
-        replaced = warped_path
+        replaced = utilityb.replaced_mask_from_other_direction_debug(index,Image.open(warped_path).convert("RGBA"),unused_mask,flow,None)
+    #else:
+    #    replaced = warped_path
     #replaced = replace_masked_area(flow,index,last_stylized,hed,allpaths[index])
     
     

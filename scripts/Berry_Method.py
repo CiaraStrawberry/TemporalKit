@@ -32,19 +32,19 @@ check_edges = False
 def split_into_batches(frames, batch_size):
     return [frames[i:i + batch_size] for i in range(0, len(frames), batch_size)]
 
-def create_square_texture(frames, max_size):
+def create_square_texture(frames, max_size, side_length=3):
     num_frames = len(frames)
 
     # Calculate the average aspect ratio of the input frames
     aspect_ratios = [frame.shape[1] / frame.shape[0] for frame in frames if frame is not None and frame.size != 0]
     avg_aspect_ratio = sum(aspect_ratios) / len(aspect_ratios)
 
-    frames_per_row = math.ceil(math.sqrt(num_frames))
+    frames_per_row = side_length
     frame_width = max_size // frames_per_row
     frame_height = int(frame_width / avg_aspect_ratio)
 
     actual_texture_width = frame_width * frames_per_row
-    actual_texture_height = frame_height * math.ceil(num_frames / frames_per_row)
+    actual_texture_height = frame_height * frames_per_row
     texture = np.zeros((actual_texture_height, actual_texture_width, 3), dtype=np.uint8)
 
     for i, frame in enumerate(frames):
@@ -70,11 +70,22 @@ def split_frames_into_big_batches(frames, batch_size, border):
     """
     num_frames = len(frames)
     num_batches = int(np.ceil(num_frames / batch_size))
-    print (f"frames num = {len(frames)} while num batches = {num_batches}")
+    print(f"frames num = {len(frames)} while num batches = {num_batches}")
     batches = []
     for i in range(num_batches):
         start_idx = i * batch_size
-        end_idx = min(start_idx + batch_size + border, num_frames)
+        end_idx = start_idx + batch_size
+
+        # Add border frames if not the last batch and if available
+        if i < num_batches - 1:
+            end_idx += min(border, num_frames - end_idx)
+        else:
+            # Combine the last batch with the previous batch if the number of frames in the last batch is smaller than the border size
+            if end_idx - start_idx < border and len(batches) > 0:
+                batches[-1] = np.concatenate((batches[-1], frames[start_idx:end_idx]))
+                break
+
+        end_idx = min(end_idx, num_frames)
         batches.append(frames[start_idx:end_idx])
     return batches
 
@@ -131,7 +142,7 @@ def generate_square_from_video(video_path, fps, batch_size,resolution,size_size)
     print("Number of batches:", len(batches))
     first_frames = [batch[0] for batch in batches]  
     
-    square_texture = create_square_texture(first_frames, resolution)
+    square_texture = create_square_texture(first_frames, resolution,side_length=size_size)
     #save_square_texture(square_texture, "./result/original.png")
     
     return square_texture
@@ -160,7 +171,7 @@ def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size
         print("Number of batches:", len(batches))
         first_frames = [batch[0] for batch in batches]  
         
-        square_texture = create_square_texture(first_frames, resolution)
+        square_texture = create_square_texture(first_frames, resolution,side_length=size_size)
         save_square_texture(square_texture, os.path.join(input_folder_loc, f"input{i}.png"))
         square_textures.append(square_texture)
     
@@ -215,9 +226,12 @@ def merge_image_batches(image_batches, border):
 
         # Blend the border images between the current and next batch
         for j in range(border):
-            alpha = float(j) / float(border)
-            blended_image = cv2.addWeighted(current_batch[len(current_batch) - border + j], 1 - alpha, next_batch[j], alpha, 0)
-            merged_batches.append(blended_image)
+            try:
+                alpha = float(j) / float(border)
+                blended_image = cv2.addWeighted(current_batch[len(current_batch) - border + j], 1 - alpha, next_batch[j], alpha, 0)
+                merged_batches.append(blended_image)
+            except IndexError:
+                print ("merge failed")
 
     # Add remaining images from the last batch
     merged_batches.extend(image_batches[-1][border:])
@@ -474,9 +488,6 @@ def image_folder_to_video(folder_path, output_file, fps=24):
 
 
 def extract_frames_movpie(input_video, target_fps, max_frames=None):
-    with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as f:
-        f.write(input_video)
-    video_path = f.name
 
     def get_video_info(video_path):
         cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', video_path]
@@ -487,6 +498,11 @@ def extract_frames_movpie(input_video, target_fps, max_frames=None):
         temp_dir = tempfile.gettempdir()
         temp_filename = f"{uuid.uuid4().hex}{suffix}"
         return os.path.join(temp_dir, temp_filename)
+    
+    with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as f:
+        f.write(input_video)
+    video_path = f.name
+
 
     video_info = get_video_info(video_path)
     video_stream = next((stream for stream in video_info['streams'] if stream['codec_type'] == 'video'), None)

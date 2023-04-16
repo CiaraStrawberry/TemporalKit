@@ -273,8 +273,8 @@ def create_diffusing_tab ():
                             with gr.Row():
                                 fps = gr.Number(label="FPS",value=10,precision=1)
                                 per_side = gr.Number(label="per side",value=3,precision=1)
-                                output_resolution = gr.Number(label="output resolution",value=1024,precision=1)
-                                batch_size = gr.Number(label="batch size",value=10,precision=1)
+                                output_resolution_single = gr.Number(label="output resolution",value=1024,precision=1)
+                                batch_size_diffuse = gr.Number(label="batch size",value=10,precision=1)
                             with gr.Row():
                                 runButton = gr.Button("run", elem_id="run_button")
 
@@ -286,18 +286,17 @@ def create_diffusing_tab ():
                             #newbutton = gr.Button("update", elem_id="update_button")
                             outputfile = gr.Video()
     
-        teststring = "test"
         read_last_image.click(
         fn=update_image,
         outputs=input_image
         )
         read_last_settings.click(
         fn=update_settings,
-        outputs=[fps,per_side,batch_size,input_video]
+        outputs=[fps,per_side,batch_size_diffuse,input_video]
         )
         runButton.click(
         fn=apply_image_to_video,
-        inputs=[input_image, input_video,fps,per_side,output_resolution,batch_size],
+        inputs=[input_image, input_video,fps,per_side,output_resolution_single,batch_size_diffuse],
         outputs=outputfile
         )
 
@@ -317,7 +316,7 @@ def create_batch_tab ():
                             with gr.Row():
                                 fps = gr.Number(label="FPS",value=10,precision=1)
                                 per_side = gr.Number(label="per side",value=3,precision=1)
-                                output_resolution = gr.Number(label="output resolution",value=1024,precision=1)
+                                output_resolution_batch = gr.Number(label="output resolution",value=1024,precision=1)
                                 batch_size = gr.Number(label="batch size",value=5,precision=1)
                                 max_frames = gr.Number(label="max frames",value=100,precision=1)
                                 border_frames = gr.Number(label="border frames",value=10,precision=1)
@@ -339,7 +338,7 @@ def create_batch_tab ():
         )
         runButton.click(
         fn=apply_image_to_vide_batch,
-        inputs=[input_folder,input_video,fps,per_side,output_resolution,batch_size,max_frames,border_frames],
+        inputs=[input_folder,input_video,fps,per_side,output_resolution_batch,batch_size,max_frames,border_frames],
         outputs=outputfile
         )
 tabs_list = ["TemporalKit"]
