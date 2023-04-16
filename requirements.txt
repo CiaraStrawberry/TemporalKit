@@ -1,3 +1,2 @@
 ffmpeg-python
 moviepy
-tensorflow

@@ -1,5 +1,8 @@
 # TemporalKit
+
 An easy solution for adding Temporal Stability to a Stable Diffusion Render via an automatic1111 extension
+
+*You must install FFMPEG to path before running this*
 
 You can find a demonstration run through with a single batch here: 
 
@@ -30,6 +33,20 @@ Batch Folder: If you're generating a batch of plates, just specify a empty folde
 
 Output Resolution (in the batch warp tab): the maximum resolution on any side of the output video.
 
+FAQ:
+
+Q: my video has smearing
+
+A: use a higher fps and/or lower batchnumber, the closer together the keyframes the less artifacts.
+
+Q: my video jumps about
+
+A: make sure to set the plate resolution to a multiple of 8 and your frame number and diffuse at that resolution
+
+Q: the video goes blurry at the end
+
+A: remove the last non fully sized plate before processing.
+
 #TODO
 - set up diffusion based upscaling for the plates output 
 - constrain the input resolutions to multiples of 3 and 8
@@ -38,5 +55,6 @@ Output Resolution (in the batch warp tab): the maximum resolution on any side of
 - fix that weird shutdown error it gives after running
 - fix the thing it does where it sometimes generates an extra tab when making batches 
 - hook up to the api.
+- ebsynth and flowmaps from game engine export\import support
 
 Thanks to RAFT for the optical flow system.
