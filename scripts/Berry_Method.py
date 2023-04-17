@@ -149,7 +149,7 @@ def generate_square_from_video(video_path, fps, batch_size,resolution,size_size)
 
 def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size,max_frames,output_folder,border):
 
-    if border >  (batch_size * size_size * size_size) / 2:
+    if border >=  (batch_size * size_size * size_size) / 2:
         raise Exception("too many border frames, reduce border or increase batch size")
     
     input_folder_loc = os.path.join(output_folder, "input")
