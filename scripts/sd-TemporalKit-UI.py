@@ -213,7 +213,7 @@ def create_video_Processing_Tab():
                                 video = gr.Video(label="Input Video", elem_id="input_video",type="filepath")
                                 with gr.Row():
                                     sides = gr.Number(value=3,label="Sides", precision=0, interactive=True)
-                                    resolution = gr.Number(value=1300,label="Resolution", precision=1, interactive=True)
+                                    resolution = gr.Number(value=1536,label="Resolution", precision=1, interactive=True)
                                 with gr.Row():
                                     batch_size = gr.Number(value=5, label="batch_size", precision=1, interactive=True)
                                     fps = gr.Number(value=10, precision=1, label="fps", interactive=True)    
