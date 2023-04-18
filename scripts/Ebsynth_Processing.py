@@ -27,10 +27,27 @@ def sort_into_folders(video_path, fps, per_side, batch_size, fillindenoise, edge
 
     output_frames_folder = os.path.join(output_folder, "frames")
     output_keys_folder = os.path.join(output_folder, "keys")
+    input_folder = os.path.join(output_folder, "input")
+    filenames = os.listdir(input_folder)
+    img = Image.open(os.path.join(input_folder, filenames[0]))
+    original_width, original_height = img.size
+    height,width = frames[0].shape[:2]
+    
+    texture_aspect_ratio = float(width) / float(height)
+    
+    
+    _smol_frame_height = _smol_resolution
+    _smol_frame_width = int(_smol_frame_height * texture_aspect_ratio)
+    print(f"saving size = {_smol_frame_width}x{_smol_frame_height}")
+
+
     for i, frame in enumerate(frames):
-        bmethod.save_square_texture(frame, os.path.join(output_frames_folder, "frames{:05d}.png".format(i)))
+        frame_to_save = cv2.resize(frame, (_smol_frame_width, _smol_frame_height), interpolation=cv2.INTER_LINEAR)
+        bmethod.save_square_texture(frame_to_save, os.path.join(output_frames_folder, "frames{:05d}.png".format(i)))
     original_frame_height,original_frame_width = frames[0].shape[:2]
-    print (original_frame_height,original_frame_width)
+    
+
+
     bigbatches,frameLocs = bmethod.split_frames_into_big_batches(frames, per_batch_limmit,border,ebsynth=True,returnframe_locations=True)
     bigprocessedbatches = []
 
@@ -41,14 +58,15 @@ def sort_into_folders(video_path, fps, per_side, batch_size, fillindenoise, edge
 
         keyframes = [batch[int(len(batch)/2)] for batch in batches]
         if a < len(square_textures):
-            new_frames = bmethod.split_square_texture(square_textures[a],len(keyframes), per_side* per_side,_smol_resolution)
+            resized_square_texture = cv2.resize(square_textures[a], (original_width, original_height), interpolation=cv2.INTER_LINEAR)
+            new_frames = bmethod.split_square_texture(resized_square_texture,len(keyframes), per_side* per_side,_smol_resolution,True)
             new_frame_start,new_frame_end = frameLocs[a]
             for b in range(len(new_frames)):
                 print (new_frame_start)
                 inner_start = new_frame_start + (b * batch_size)
                 inner_end = new_frame_start + ((b+1) * batch_size)
                 frame_position  = inner_start + int((inner_end - inner_start)/2)
-                frame_to_save = cv2.resize(new_frames[b], (original_frame_width, original_frame_height), interpolation=cv2.INTER_LINEAR)
+                frame_to_save = cv2.resize(new_frames[b], (_smol_frame_width, _smol_frame_height), interpolation=cv2.INTER_LINEAR)
                 bmethod.save_square_texture(frame_to_save, os.path.join(output_keys_folder, "keys{:05d}.png".format(frame_position)))
     
     just_frame_groups = []
@@ -137,8 +155,8 @@ def crossfade_folder_of_folders(output_folder, fps):
     final_dir = os.path.join(root_folder, dirs[-1])
     for c in range(allkeynums[-1], len(final_dir)):
         
-        images_final = sorted(os.listdir(current_dir))
-        image1_path = os.path.join(current_dir, images_final[c])
+        images_final = sorted(os.listdir(final_dir))
+        image1_path = os.path.join(final_dir, images_final[c])
         image1 = Image.open(image1_path)
         output_images.append(np.array(image1))
     

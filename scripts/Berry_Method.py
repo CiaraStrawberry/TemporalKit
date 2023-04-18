@@ -39,18 +39,24 @@ def split_into_batches(frames, batch_size, max_batches):
     return groups
 
 def create_square_texture(frames, max_size, side_length=3):
-    num_frames = len(frames)
 
+    original_height, original_width = frames[0].shape[:2]
     # Calculate the average aspect ratio of the input frames
-    aspect_ratios = [frame.shape[1] / frame.shape[0] for frame in frames if frame is not None and frame.size != 0]
-    avg_aspect_ratio = sum(aspect_ratios) / len(aspect_ratios)
+    big_frame_width = original_width * side_length
+    big_frame_height = original_height * side_length
+
+    texture_aspect_ratio = float(big_frame_width) / float(big_frame_height)
+    _smol_frame_height = max_size
+    _smol_frame_width = int(_smol_frame_height * texture_aspect_ratio)
+
+
+    actual_texture_width, actual_texture_height = resize_to_nearest_multiple(_smol_frame_width, _smol_frame_height, side_length)
 
     frames_per_row = side_length
-    frame_width = max_size // frames_per_row
-    frame_height = int(frame_width / avg_aspect_ratio)
+    frame_width = int (actual_texture_width / side_length)
+    frame_height = int(actual_texture_height / side_length)
+    print (f"generating square of height {frame_height} and width {frame_width}")
 
-    actual_texture_width = frame_width * frames_per_row
-    actual_texture_height = frame_height * frames_per_row
     texture = np.zeros((actual_texture_height, actual_texture_width, 3), dtype=np.uint8)
 
     for i, frame in enumerate(frames):
@@ -105,18 +111,23 @@ def split_frames_into_big_batches(frames, batch_size, border,ebsynth,returnframe
     else:
         return batches,frame_locations
 
-def split_square_texture(texture, num_frames,max_frames, _smol_resolution):
+def split_square_texture(texture, num_frames,max_frames, _smol_resolution,ebsynth=False):
     
     texture_height, texture_width = texture.shape[:2]
     texture_aspect_ratio = float(texture_width) / float(texture_height)
     
     frames_per_row = int(math.ceil(math.sqrt(max_frames)))
-    frame_height = texture_height // frames_per_row
-    frame_width = int(frame_height * texture_aspect_ratio)
+    frame_height = int (texture_height / frames_per_row)
+    frame_width = int(texture_width / frames_per_row)
     
     _smol_frame_height = _smol_resolution
     _smol_frame_width = int(_smol_frame_height * texture_aspect_ratio)
 
+    if ebsynth == False:
+        _smol_frame_resized_width, _smol_frame_resized_height = resize_to_nearest_multiple_of_8(_smol_frame_width, _smol_frame_height)
+    else:
+        _smol_frame_resized_width, _smol_frame_resized_height  = _smol_frame_resized_width, _smol_frame_resized_height 
+    #_smol_frame_resized_width, _smol_frame_resized_height = _smol_frame_width, _smol_frame_height
     frames = []
 
     for i in range(num_frames):
@@ -124,10 +135,11 @@ def split_square_texture(texture, num_frames,max_frames, _smol_resolution):
         frame = texture[row * frame_height:(row + 1) * frame_height, col * frame_width:(col + 1) * frame_width]
 
         if not frame.size == 0:
-            resized_frame = cv2.resize(frame, (_smol_frame_width, _smol_frame_height), interpolation=cv2.INTER_AREA)
+            resized_frame = cv2.resize(frame, (_smol_frame_resized_width, _smol_frame_resized_height), interpolation=cv2.INTER_AREA)
             frames.append(resized_frame)
         else:
-            frames.append(np.zeros((_smol_frame_height, _smol_frame_width, 3), dtype=np.uint8))
+            print("frame size 0")
+            frames.append(np.zeros((_smol_frame_resized_width, _smol_frame_resized_height, 3), dtype=np.uint8))
 
     return frames
 
@@ -201,6 +213,8 @@ def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size
 
     bigbatches = split_frames_into_big_batches(frames, per_batch_limmit,border,ebsynth=ebsynth_mode)
     square_textures = []
+    height = 0
+    width = 0
     for i in range(len(bigbatches)):
         batches = split_into_batches(bigbatches[i], batch_size, size_size * size_size)
         print("Number of batches:", len(batches))
@@ -212,6 +226,8 @@ def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size
         square_texture = create_square_texture(keyframes, resolution,side_length=size_size)
         save_square_texture(square_texture, os.path.join(input_folder_loc, f"input{i}.png"))
         square_textures.append(square_texture)
+        height = square_texture.shape[0]
+        width = square_texture.shape[1]
     
     batch_settings_loc = os.path.join(output_folder, "batch_settings.txt")
     with open(batch_settings_loc, "w") as f:
@@ -239,6 +255,25 @@ def delete_folder_contents(folder_path):
 def blend_images(img1, img2, alpha=0.5):
     blended = cv2.addWeighted(img1, alpha, img2, 1-alpha, 0)
     return blended
+
+def resize_to_nearest_multiple(width, height, a):
+    def nearest_multiple(n, a, b):
+        multiple_a = round(n / a) * a
+        multiple_b = round(n / b) * b
+        return min(multiple_a, multiple_b, key=lambda x: abs(x - n))
+
+    new_width = nearest_multiple(width, a, 8)
+    new_height = nearest_multiple(height, a, 8)
+    return int(new_width), int(new_height)
+
+def resize_to_nearest_multiple_of_8(width, height):
+    def nearest_multiple(n, factor):
+        return round(n / factor) * factor
+
+    new_width = nearest_multiple(width, 8)
+    new_height = nearest_multiple(height, 8)
+    return new_width, new_height
+
 
 def merge_image_batches(image_batches, border):
     merged_batches = []
@@ -275,7 +310,8 @@ def merge_image_batches(image_batches, border):
     return merged_batches
 
 def process_video_batch (video_path, fps, per_side, batch_size, fillindenoise, edgedenoise, _smol_resolution,square_textures,max_frames,output_folder,border):
-    per_batch_limmit = (((per_side * per_side) * batch_size)) - border
+    
+    per_batch_limmit = (((per_side * per_side) * batch_size)) + border
     video_data = convert_video_to_bytes(video_path)
     frames = extract_frames_movpie(video_data, fps, max_frames)
     print(f"full frames num = {len(frames)}")
@@ -353,7 +389,7 @@ def process_video(frames, per_side, batch_size, fillindenoise, edgedenoise, _smo
     encoded_returns = result_texture
     #encoded_returns = cv2.cvtColor(utilityb.base64_to_texture(result_texture), cv2.COLOR_BGR2RGB)
 
-    new_frames = split_square_texture(encoded_returns,len(first_frames), per_side * per_side,_smol_resolution)
+    new_frames = split_square_texture(encoded_returns,len(first_frames), per_side * per_side,_smol_resolution,False)
     
     if check_edges:
         for i, image in enumerate(new_frames):

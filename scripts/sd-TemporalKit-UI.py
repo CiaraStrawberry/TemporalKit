@@ -52,14 +52,19 @@ def upload_file(files):
 
 
 def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_frames,output_path,border_frames,ebsynth_mode):
+    max_frames = (max_frames * batch_size) + 1
+    # potential bug later, low priority
     if ebsynth_mode == True:
+        if batch_run == False:
+            max_frames = per_side * per_side * batch_size
+            border_frames = 0
         image = berry.generate_squares_to_folder(video,fps=fps,batch_size=batch_size, resolution=resolution,size_size=per_side,max_frames=max_frames, output_folder=output_path,border=border_frames, ebsynth_mode=True )
         return image[0]
     if batch_run == False:
         image = berry.generate_square_from_video(video,fps=fps,batch_size=batch_size, resolution=resolution,size_size=per_side )
         processed = numpy_array_to_temp_url(image)
     else:
-        image = berry.generate_squares_to_folder(video,fps=fps,batch_size=batch_size, resolution=resolution,size_size=per_side,max_frames=max_frames, output_folder=output_path,border=border_frames)
+        image = berry.generate_squares_to_folder(video,fps=fps,batch_size=batch_size, resolution=resolution,size_size=per_side,max_frames=max_frames, output_folder=output_path,border=border_frames,ebsynth_mode=False )
         processed = image[0]
     return processed
 
@@ -226,9 +231,9 @@ def create_video_Processing_Tab():
                                 video = gr.Video(label="Input Video", elem_id="input_video",type="filepath")
                                 with gr.Row():
                                     sides = gr.Number(value=3,label="Sides", precision=0, interactive=True)
-                                    resolution = gr.Number(value=1536,label="Resolution", precision=1, interactive=True)
+                                    resolution = gr.Number(value=1536,label="Height Resolution", precision=1, interactive=True)
                                 with gr.Row():
-                                    batch_size = gr.Number(value=5, label="batch_size", precision=1, interactive=True)
+                                    batch_size = gr.Number(value=5, label="frames per keyframe", precision=1, interactive=True)
                                     fps = gr.Number(value=10, precision=1, label="fps", interactive=True)    
                                     ebsynth_mode = gr.Checkbox(label="EBSynth Mode", value=False)
                                 with gr.Row():
@@ -240,7 +245,7 @@ def create_video_Processing_Tab():
                                     with gr.Accordion("Batch Settings",open=False):
                                         with gr.Row():
                                             batch_checkbox = gr.Checkbox(label="Batch Run", value=False)
-                                            batch_max_frames = gr.Number(value=-1, label="Max Frames", precision=1, interactive=True,placeholder="for all frames")
+                                            max_keyframes = gr.Number(value=-1, label="Max key frames", precision=1, interactive=True,placeholder="for all frames")
                                             border_frames = gr.Number(value=5, label="Border Frames", precision=1, interactive=True,placeholder="border frames")
             savesettings.click(
                 fn=save_settings,
@@ -261,7 +266,7 @@ def create_video_Processing_Tab():
                     print("failed")
                     pass
     parameters_copypaste.add_paste_fields("TemporalKit", result_image,None)
-    runbutton.click(preprocess_video, [video,fps,batch_size,sides,resolution,batch_checkbox,batch_max_frames,batch_folder,border_frames,ebsynth_mode], result_image)
+    runbutton.click(preprocess_video, [video,fps,batch_size,sides,resolution,batch_checkbox,max_keyframes,batch_folder,border_frames,ebsynth_mode], result_image)
 
 
 def show_textbox(option):
@@ -288,7 +293,7 @@ def create_diffusing_tab ():
                             with gr.Row():
                                 fps = gr.Number(label="FPS",value=10,precision=1)
                                 per_side = gr.Number(label="per side",value=3,precision=1)
-                                output_resolution_single = gr.Number(label="output resolution",value=1024,precision=1)
+                                output_resolution_single = gr.Number(label="output height resolution",value=1024,precision=1)
                                 batch_size_diffuse = gr.Number(label="batch size",value=10,precision=1)
                             with gr.Row():
                                 runButton = gr.Button("run", elem_id="run_button")
@@ -337,6 +342,7 @@ def create_batch_tab ():
                                 border_frames = gr.Number(label="border frames",value=10,precision=1)
                             with gr.Row():
                                 runButton = gr.Button("run", elem_id="run_button")
+                            
 
                             
             with gr.Tabs(elem_id="mode_TemporalKit"):
