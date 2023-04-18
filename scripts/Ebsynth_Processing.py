@@ -19,6 +19,7 @@ import re
 
 
 def sort_into_folders(video_path, fps, per_side, batch_size, fillindenoise, edgedenoise, _smol_resolution,square_textures,max_frames,output_folder,border):
+    border = 0
     per_batch_limmit = (((per_side * per_side) * batch_size)) + border
     video_data = bmethod.convert_video_to_bytes(video_path)
     frames = bmethod.extract_frames_movpie(video_data, fps, max_frames)

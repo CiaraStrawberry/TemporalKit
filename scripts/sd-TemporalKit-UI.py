@@ -55,9 +55,10 @@ def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_fram
     max_frames = (max_frames * batch_size) + 1
     # potential bug later, low priority
     if ebsynth_mode == True:
+        border_frames = 0
         if batch_run == False:
             max_frames = per_side * per_side * batch_size
-            border_frames = 0
+            
         image = berry.generate_squares_to_folder(video,fps=fps,batch_size=batch_size, resolution=resolution,size_size=per_side,max_frames=max_frames, output_folder=output_path,border=border_frames, ebsynth_mode=True )
         return image[0]
     if batch_run == False:
@@ -382,7 +383,7 @@ def create_ebsynth_tab():
                                 output_resolution_batch = gr.Number(label="output resolution",value=1024,precision=1)
                                 batch_size = gr.Number(label="batch size",value=5,precision=1)
                                 max_frames = gr.Number(label="max frames",value=100,precision=1)
-                                border_frames = gr.Number(value=5, label="Border Frames", precision=1, interactive=True,placeholder="border frames")
+                                #border_frames = gr.Number(value=5, label="Border Frames", precision=1, interactive=True,placeholder="border frames")
                             with gr.Row():
                                 runButton = gr.Button("prepare ebsynth", elem_id="run_button")
                                 recombineButton = gr.Button("recombine ebsynth", elem_id="recombine_button")
@@ -395,11 +396,11 @@ def create_ebsynth_tab():
         read_last_settings_synth.click(
         fn=update_settings_from_file,
         inputs=[input_folder],
-        outputs=[fps,per_side,batch_size,input_video,max_frames,border_frames]
+        outputs=[fps,per_side,batch_size,input_video,max_frames]
         )
         runButton.click(
         fn=post_process_ebsynth,
-        inputs=[input_folder,input_video,fps,per_side,output_resolution_batch,batch_size,max_frames,border_frames],
+        inputs=[input_folder,input_video,fps,per_side,output_resolution_batch,batch_size,max_frames],
         outputs=outputfile
         )
         recombineButton.click(

@@ -55,7 +55,7 @@ def create_square_texture(frames, max_size, side_length=3):
     frames_per_row = side_length
     frame_width = int (actual_texture_width / side_length)
     frame_height = int(actual_texture_height / side_length)
-    print (f"generating square of height {frame_height} and width {frame_width}")
+    print (f"generating square of height {big_frame_width} and width {big_frame_height}")
 
     texture = np.zeros((actual_texture_height, actual_texture_width, 3), dtype=np.uint8)
 
@@ -126,7 +126,7 @@ def split_square_texture(texture, num_frames,max_frames, _smol_resolution,ebsynt
     if ebsynth == False:
         _smol_frame_resized_width, _smol_frame_resized_height = resize_to_nearest_multiple_of_8(_smol_frame_width, _smol_frame_height)
     else:
-        _smol_frame_resized_width, _smol_frame_resized_height  = _smol_frame_resized_width, _smol_frame_resized_height 
+        _smol_frame_resized_width, _smol_frame_resized_height  = _smol_frame_width, _smol_frame_height 
     #_smol_frame_resized_width, _smol_frame_resized_height = _smol_frame_width, _smol_frame_height
     frames = []
 
