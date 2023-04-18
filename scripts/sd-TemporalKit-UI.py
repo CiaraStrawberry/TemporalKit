@@ -41,6 +41,8 @@ import scripts.Berry_Method as berry
 import glob
 import base64
 import io
+import scripts.Ebsynth_Processing as ebsynth
+
 diffuseimg = None
 SamplerData = namedtuple('SamplerData', ['name', 'constructor', 'aliases', 'options'])
 lastmadefilename = ""
@@ -49,7 +51,10 @@ def upload_file(files):
     return file_paths
 
 
-def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_frames,output_path,border_frames):
+def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_frames,output_path,border_frames,ebsynth_mode):
+    if ebsynth_mode == True:
+        image = berry.generate_squares_to_folder(video,fps=fps,batch_size=batch_size, resolution=resolution,size_size=per_side,max_frames=max_frames, output_folder=output_path,border=border_frames, ebsynth_mode=True )
+        return image[0]
     if batch_run == False:
         image = berry.generate_square_from_video(video,fps=fps,batch_size=batch_size, resolution=resolution,size_size=per_side )
         processed = numpy_array_to_temp_url(image)
@@ -69,6 +74,14 @@ def apply_image_to_vide_batch(input_folder,video,fps,per_side,output_resolution,
     print(len(images))
     return berry.process_video_batch(video_path=video,fps=fps,per_side=per_side,batch_size=batch_size,fillindenoise=0,edgedenoise=0,_smol_resolution=output_resolution,square_textures=images,max_frames=max_frames,output_folder=input_folder,border=border_frames)
 
+def post_process_ebsynth(input_folder,video,fps,per_side,output_resolution,batch_size,max_frames,border_frames):
+    input_images_folder = os.path.join (input_folder,"output")
+    images = read_images_folder(input_images_folder)
+    print(len(images))
+    return ebsynth.sort_into_folders(video_path=video,fps=fps,per_side=per_side,batch_size=batch_size,fillindenoise=0,edgedenoise=0,_smol_resolution=output_resolution,square_textures=images,max_frames=max_frames,output_folder=input_folder,border=border_frames)
+
+def recombine_ebsynth(input_folder,fps):
+    return ebsynth.crossfade_folder_of_folders(input_folder,fps=fps)
 
 def atoi(text):
     return int(text) if text.isdigit() else text
@@ -217,16 +230,18 @@ def create_video_Processing_Tab():
                                 with gr.Row():
                                     batch_size = gr.Number(value=5, label="batch_size", precision=1, interactive=True)
                                     fps = gr.Number(value=10, precision=1, label="fps", interactive=True)    
+                                    ebsynth_mode = gr.Checkbox(label="EBSynth Mode", value=False)
                                 with gr.Row():
                                     savesettings = gr.Button("Save Settings") 
+                                with gr.Row():
+                                    batch_folder = gr.Textbox(label="Target Folder",placeholder="This is ignored if neither batch run or ebsynth are checked")
+
                                 with gr.Row():
                                     with gr.Accordion("Batch Settings",open=False):
                                         with gr.Row():
                                             batch_checkbox = gr.Checkbox(label="Batch Run", value=False)
                                             batch_max_frames = gr.Number(value=-1, label="Max Frames", precision=1, interactive=True,placeholder="for all frames")
                                             border_frames = gr.Number(value=5, label="Border Frames", precision=1, interactive=True,placeholder="border frames")
-                                        with gr.Row():
-                                            batch_folder = gr.Textbox(label="Batch Folder",placeholder="This is ignored if batch run is not checked")
             savesettings.click(
                 fn=save_settings,
                 inputs=[fps,sides,batch_size,video]
@@ -246,7 +261,7 @@ def create_video_Processing_Tab():
                     print("failed")
                     pass
     parameters_copypaste.add_paste_fields("TemporalKit", result_image,None)
-    runbutton.click(preprocess_video, [video,fps,batch_size,sides,resolution,batch_checkbox,batch_max_frames,batch_folder,border_frames], result_image)
+    runbutton.click(preprocess_video, [video,fps,batch_size,sides,resolution,batch_checkbox,batch_max_frames,batch_folder,border_frames,ebsynth_mode], result_image)
 
 
 def show_textbox(option):
@@ -341,6 +356,51 @@ def create_batch_tab ():
         inputs=[input_folder,input_video,fps,per_side,output_resolution_batch,batch_size,max_frames,border_frames],
         outputs=outputfile
         )
+
+
+def create_ebsynth_tab():
+    with gr.Column(visible=True, elem_id="batch_process") as second_panel:
+        with gr.Row():
+            with gr.Tabs(elem_id="mode_TemporalKit"):
+                with gr.Row():
+                    with gr.Tab(elem_id="input_diffuse", label="Generate Batch"):
+                        with gr.Column():
+                            with gr.Row():
+                                input_folder = gr.Textbox(label="Input Folder",placeholder="the whole folder, generated before, not just the output folder")
+                                input_video = gr.Video(label="Input Video", elem_id="input_videopage2")
+                            with gr.Row():
+                                read_last_settings_synth = gr.Button("read_last_settings", elem_id="read_last_settings")
+                            with gr.Row():
+                                fps = gr.Number(label="FPS",value=10,precision=1)
+                                per_side = gr.Number(label="per side",value=3,precision=1)
+                                output_resolution_batch = gr.Number(label="output resolution",value=1024,precision=1)
+                                batch_size = gr.Number(label="batch size",value=5,precision=1)
+                                max_frames = gr.Number(label="max frames",value=100,precision=1)
+                                border_frames = gr.Number(value=5, label="Border Frames", precision=1, interactive=True,placeholder="border frames")
+                            with gr.Row():
+                                runButton = gr.Button("prepare ebsynth", elem_id="run_button")
+                                recombineButton = gr.Button("recombine ebsynth", elem_id="recombine_button")
+            with gr.Tabs(elem_id="mode_TemporalKit"):
+                with gr.Row():
+                    with gr.Tab(elem_id="input_diffuse", label="Output"):
+                        with gr.Column():
+                            #newbutton = gr.Button("update", elem_id="update_button")
+                            outputfile = gr.Video()
+        read_last_settings_synth.click(
+        fn=update_settings_from_file,
+        inputs=[input_folder],
+        outputs=[fps,per_side,batch_size,input_video,max_frames,border_frames]
+        )
+        runButton.click(
+        fn=post_process_ebsynth,
+        inputs=[input_folder,input_video,fps,per_side,output_resolution_batch,batch_size,max_frames,border_frames],
+        outputs=outputfile
+        )
+        recombineButton.click(
+        fn=recombine_ebsynth,
+        inputs=[input_folder,fps],
+        outputs=outputfile
+        )
 tabs_list = ["TemporalKit"]
 
 def on_ui_tabs():
@@ -356,6 +416,9 @@ def on_ui_tabs():
                 with gr.Tab(label="Batch-Warp",elem_id="batch-button"):
                     with gr.Blocks(analytics_enabled=False):          
                         create_batch_tab()
+                with gr.Tab(label="Ebsynth-Process",elem_id="Ebsynth-Process"):
+                    with gr.Blocks(analytics_enabled=False):          
+                        create_ebsynth_tab()
         return (temporalkit, "Temporal-Kit", "TemporalKit"),
 
 
