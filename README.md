@@ -12,6 +12,9 @@ And a batch demonstration here:
 
 https://mobile.twitter.com/CiaraRowles1/status/1646458056803250178
 
+Ebsynth tutorial:
+
+https://twitter.com/CiaraRowles1/status/1648462374125576192
 
 The values in the extension are as follows
 
@@ -39,22 +42,12 @@ Q: my video has smearing
 
 A: use a higher fps and/or lower batchnumber, the closer together the keyframes the less artifacts.
 
-Q: my video jumps about
-
-A: make sure to set the plate resolution to a multiple of 8 and your frame number and diffuse at that resolution
-
-Q: the video goes blurry at the end
-
-A: remove the last non fully sized plate before processing.
-
 #TODO
 - set up diffusion based upscaling for the plates output 
-- constrain the input resolutions to multiples of 3 and 8
 - get the img2img button working with batch processing.
 - add a check to see if the output folder was added.
 - fix that weird shutdown error it gives after running
-- fix the thing it does where it sometimes generates an extra tab when making batches 
 - hook up to the api.
-- ebsynth and flowmaps from game engine export\import support
+- flowmaps from game engine export\import support
 
 Thanks to RAFT for the optical flow system.
