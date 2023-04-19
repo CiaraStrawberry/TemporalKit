@@ -333,7 +333,7 @@ def process_video_batch (video_path, fps, per_side, batch_size, fillindenoise, e
 
     combined = merge_image_batches(just_frame_groups, border)
 
-    save_loc = os.path.join(output_folder, "non_blended.mp4")
+    save_loc = os.path.join(output_folder, "blended.mp4")
     generated_vid = pil_images_to_video(combined,save_loc, fps)
     return generated_vid
 
