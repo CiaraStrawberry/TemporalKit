@@ -55,7 +55,7 @@ def create_square_texture(frames, max_size, side_length=3):
     frames_per_row = side_length
     frame_width = int (actual_texture_width / side_length)
     frame_height = int(actual_texture_height / side_length)
-    print (f"generating square of height {big_frame_width} and width {big_frame_height}")
+    print (f"generating square of height {actual_texture_width} and width {actual_texture_height}")
 
     texture = np.zeros((actual_texture_height, actual_texture_width, 3), dtype=np.uint8)
 
