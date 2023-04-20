@@ -586,9 +586,11 @@ def extract_frames_movpie(input_video, target_fps, max_frames=None):
     video_clip = VideoFileClip(video_path)
     video_resampled = video_clip.set_fps(target_fps)
 
-    if max_frames is not None:
-        if not max_frames == 0:
-            video_resampled = video_resampled.subclip(0, max_frames / target_fps)
+    if max_frames is not None and max_frames != 0:
+        total_frames = video_resampled.duration * target_fps
+        if total_frames > max_frames:
+            end_time = max_frames / target_fps
+            video_resampled = video_resampled.subclip(0, end_time)
 
     frames = []
     for frame in video_resampled.iter_frames(dtype="uint8"):

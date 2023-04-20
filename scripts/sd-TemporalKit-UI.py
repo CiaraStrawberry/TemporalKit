@@ -105,10 +105,12 @@ def read_images_folder(folder_path):
     for filename in filenames:
         # Check if file is an image (assumes only image files are in the folder)
         if filename.endswith('.jpg') or filename.endswith('.png') or filename.endswith('.jpeg'):
-            # Open image using Pillow library
-            img = Image.open(os.path.join(folder_path, filename))
-            # Convert image to NumPy array and append to images list
-            images.append(np.array(img))
+            if filename.startswith('input'):
+                # Open image using Pillow library
+            
+                img = Image.open(os.path.join(folder_path, filename))
+                # Convert image to NumPy array and append to images list
+                images.append(np.array(img))
     return images
 
 
