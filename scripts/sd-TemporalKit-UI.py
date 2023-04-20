@@ -104,7 +104,7 @@ def read_images_folder(folder_path):
 
     for filename in filenames:
         # Check if file is an image (assumes only image files are in the folder)
-        if filename.endswith('.jpg') or filename.endswith('.png') or filename.endswith('.jpeg'):
+        if (filename.endswith('.jpg') or filename.endswith('.png') or filename.endswith('.jpeg')) and (not re.search(r'-\d', filename)):
             if filename.startswith('input'):
                 # Open image using Pillow library
             
