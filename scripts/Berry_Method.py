@@ -257,13 +257,26 @@ def blend_images(img1, img2, alpha=0.5):
     return blended
 
 def resize_to_nearest_multiple(width, height, a):
-    def nearest_multiple(n, a, b):
-        multiple_a = round(n / a) * a
-        multiple_b = round(n / b) * b
-        return min(multiple_a, multiple_b, key=lambda x: abs(x - n))
+    def nearest_common_multiple(target, a, b):
+        multiple = 1
+        nearest_multiple = 0
+        min_diff = float('inf')
 
-    new_width = nearest_multiple(width, a, 8)
-    new_height = nearest_multiple(height, a, 8)
+        while True:
+            current_multiple = a * multiple
+            if current_multiple % b == 0:
+                diff = abs(target - current_multiple)
+                if diff < min_diff:
+                    min_diff = diff
+                    nearest_multiple = current_multiple
+                else:
+                    break
+            multiple += 1
+
+        return nearest_multiple
+
+    new_width = nearest_common_multiple(width, a, 8)
+    new_height = nearest_common_multiple(height, a, 8)
     return int(new_width), int(new_height)
 
 def resize_to_nearest_multiple_of_8(width, height):
