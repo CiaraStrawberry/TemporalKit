@@ -16,6 +16,8 @@ Ebsynth tutorial:
 
 https://twitter.com/CiaraRowles1/status/1648462374125576192
 
+NOTE: EBSYNTH DOES NOT REGISTER THE KEYFRAMES IF YOU USE ABOVE 20, 
+
 The values in the extension are as follows
 
 FPS: This is the fps the video is extracted and produced at.
