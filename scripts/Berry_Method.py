@@ -55,7 +55,7 @@ def create_square_texture(frames, max_size, side_length=3):
     frames_per_row = side_length
     frame_width = int (actual_texture_width / side_length)
     frame_height = int(actual_texture_height / side_length)
-    print (f"generating square of height {actual_texture_width} and width {actual_texture_height}")
+    print (f"generating square of width {actual_texture_width} and height {actual_texture_height}")
 
     texture = np.zeros((actual_texture_height, actual_texture_width, 3), dtype=np.uint8)
 
@@ -64,8 +64,10 @@ def create_square_texture(frames, max_size, side_length=3):
             resized_frame = cv2.resize(frame, (frame_width, frame_height), interpolation=cv2.INTER_AREA)
             row, col = i // frames_per_row, i % frames_per_row
             texture[row * frame_height:(row + 1) * frame_height, col * frame_width:(col + 1) * frame_width] = resized_frame
+            #truth be told i am not entirely sure why this is needed
+            fixed_texture = cv2.resize(texture, (actual_texture_width, actual_texture_height), interpolation=cv2.INTER_AREA)
 
-    return texture
+    return fixed_texture
 
 def split_frames_into_big_batches(frames, batch_size, border,ebsynth,returnframe_locations=False):
     """
@@ -148,7 +150,7 @@ def save_square_texture(texture, file_path):
     image = Image.fromarray(texture)
     #image = Image.fromarray(cv2.cvtColor(texture, cv2.COLOR_BGR2RGB))
     # Save the image to the specified file path
-    print(f'saved to {file_path}')
+    print(f'saved to {file_path} at size {image.size}')
     image.save(file_path, format="PNG")
 
 def convert_video_to_bytes(input_file):
