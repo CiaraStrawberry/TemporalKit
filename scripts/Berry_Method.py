@@ -25,7 +25,6 @@ edge_denoise = 0.4 # this is a factor of fill in denoise
 initial_denoise = 0.85
 frames_limit = 50
 seed = 5434536443
-video_path = "./pexels-alena-darmel-7184187_resized.mp4"
 diffuse = False
 check_edges = False
 
@@ -50,7 +49,7 @@ def create_square_texture(frames, max_size, side_length=3):
     _smol_frame_width = int(_smol_frame_height * texture_aspect_ratio)
 
 
-    actual_texture_width, actual_texture_height = resize_to_nearest_multiple(_smol_frame_width, _smol_frame_height, side_length)
+    actual_texture_width, actual_texture_height = utilityb.resize_to_nearest_multiple(_smol_frame_width, _smol_frame_height, side_length)
 
     frames_per_row = side_length
     frame_width = int (actual_texture_width / side_length)
@@ -126,7 +125,7 @@ def split_square_texture(texture, num_frames,max_frames, _smol_resolution,ebsynt
     _smol_frame_width = int(_smol_frame_height * texture_aspect_ratio)
 
     if ebsynth == False:
-        _smol_frame_resized_width, _smol_frame_resized_height = resize_to_nearest_multiple_of_8(_smol_frame_width, _smol_frame_height)
+        _smol_frame_resized_width, _smol_frame_resized_height = utilityb.resize_to_nearest_multiple_of_8(_smol_frame_width, _smol_frame_height)
     else:
         _smol_frame_resized_width, _smol_frame_resized_height  = _smol_frame_width, _smol_frame_height 
     #_smol_frame_resized_width, _smol_frame_resized_height = _smol_frame_width, _smol_frame_height
@@ -167,7 +166,7 @@ def convert_video_to_bytes(input_file):
 def generate_square_from_video(video_path, fps, batch_size,resolution,size_size):
     video_data = convert_video_to_bytes(video_path)
     frames_limit = (size_size * size_size) * batch_size
-    frames = extract_frames_movpie(video_data, fps, frames_limit)
+    frames = utilityb.extract_frames_movpie(video_data, fps, frames_limit)
     print(len(frames))
     number_of_batches = size_size * size_size
     batches = split_into_batches(frames, batch_size,number_of_batches)
@@ -210,7 +209,7 @@ def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size
     per_batch_limmit = ((size_size * size_size) * batch_size) + border
     #if ebsynth_mode == False:
     #    per_batch_limmit = per_batch_limmit + border
-    frames = extract_frames_movpie(video_data, fps, max_frames)
+    frames = utilityb.extract_frames_movpie(video_data, fps, max_frames)
 
 
     bigbatches = split_frames_into_big_batches(frames, per_batch_limmit,border,ebsynth=ebsynth_mode)
@@ -240,54 +239,8 @@ def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size
         f.write(str(max_frames) + "\n")
         f.write(str(border) + "\n")
     #return list of urls
-    return square_texture
+    return square_textures
 
-
-def delete_folder_contents(folder_path):
-    for filename in os.listdir(folder_path):
-        file_path = os.path.join(folder_path, filename)
-        try:
-            if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.unlink(file_path)
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
-        except Exception as e:
-            print(f'Failed to delete {file_path}. Reason: {e}')
-
-def blend_images(img1, img2, alpha=0.5):
-    blended = cv2.addWeighted(img1, alpha, img2, 1-alpha, 0)
-    return blended
-
-def resize_to_nearest_multiple(width, height, a):
-    def nearest_common_multiple(target, a, b):
-        multiple = 1
-        nearest_multiple = 0
-        min_diff = float('inf')
-
-        while True:
-            current_multiple = a * multiple
-            if current_multiple % b == 0:
-                diff = abs(target - current_multiple)
-                if diff < min_diff:
-                    min_diff = diff
-                    nearest_multiple = current_multiple
-                else:
-                    break
-            multiple += 1
-
-        return nearest_multiple
-
-    new_width = nearest_common_multiple(width, a, 8)
-    new_height = nearest_common_multiple(height, a, 8)
-    return int(new_width), int(new_height)
-
-def resize_to_nearest_multiple_of_8(width, height):
-    def nearest_multiple(n, factor):
-        return round(n / factor) * factor
-
-    new_width = nearest_multiple(width, 8)
-    new_height = nearest_multiple(height, 8)
-    return new_width, new_height
 
 
 def merge_image_batches(image_batches, border):
@@ -324,11 +277,11 @@ def merge_image_batches(image_batches, border):
 
     return merged_batches
 
-def process_video_batch (video_path, fps, per_side, batch_size, fillindenoise, edgedenoise, _smol_resolution,square_textures,max_frames,output_folder,border):
-    
+def process_video_batch (video_path_old, fps, per_side, batch_size, fillindenoise, edgedenoise, _smol_resolution,square_textures,max_frames,output_folder,border):
+    video_path = os.path.join (output_folder, "input_video.mp4")
     per_batch_limmit = (((per_side * per_side) * batch_size)) + border
     video_data = convert_video_to_bytes(video_path)
-    frames = extract_frames_movpie(video_data, fps, max_frames)
+    frames = utilityb.extract_frames_movpie(video_data, fps, max_frames)
     print(f"full frames num = {len(frames)}")
     bigbatches = split_frames_into_big_batches(frames, per_batch_limmit,border,ebsynth=False)
     bigprocessedbatches = []
@@ -349,11 +302,12 @@ def process_video_batch (video_path, fps, per_side, batch_size, fillindenoise, e
     combined = merge_image_batches(just_frame_groups, border)
 
     save_loc = os.path.join(output_folder, "blended.mp4")
-    generated_vid = pil_images_to_video(combined,save_loc, fps)
+    generated_vid = utilityb.pil_images_to_video(combined,save_loc, fps)
     return generated_vid
 
 
 def process_video_single(video_path, fps, per_side, batch_size, fillindenoise, edgedenoise, _smol_resolution,square_texture):
+
     extension_path = os.path.abspath(__file__)
     extension_dir = os.path.dirname(os.path.dirname(extension_path))
     output_folder = os.path.join(extension_dir, "result")
@@ -363,13 +317,13 @@ def process_video_single(video_path, fps, per_side, batch_size, fillindenoise, e
     extension_save_folder = os.path.join(extension_dir, "result")
     if not os.path.exists(extension_save_folder):
         os.makedirs(extension_save_folder)
-    delete_folder_contents(extension_save_folder)
+    utilityb.delete_folder_contents(extension_save_folder)
     #rerun the generatesquarefromvideo function to get the unaltered square texture
     video_data = convert_video_to_bytes(video_path)
-    frames = extract_frames_movpie(video_data, fps, frames_limit)
+    frames = utilityb.extract_frames_movpie(video_data, fps, frames_limit)
     processed_frames = process_video(frames,per_side,batch_size,fillindenoise,edgedenoise,_smol_resolution,square_texture)
     output_video_path = os.path.join(output_folder, "output.mp4")
-    generated_video =  pil_images_to_video(processed_frames, output_video_path, fps)
+    generated_video =  utilityb.pil_images_to_video(processed_frames, output_video_path, fps)
     return generated_video
 
 
@@ -510,45 +464,6 @@ def process_video(frames, per_side, batch_size, fillindenoise, edgedenoise, _smo
     return output_pil_images
 
     
-def pil_images_to_video(images, output_file, fps=24):
-    """
-    Turns a list of PIL images into a video using MoviePy.
-
-    :param images: list, a list of PIL Image objects
-    :param output_file: str, path to the output video file (e.g., 'output.mp4')
-    :param fps: int, frames per second (default: 24)
-    """
-
-    
-
-    pil_images = []
-    for image in images:
-        newimg = Image.fromarray(image)
-        pil_images.append(newimg)
-    video_size = pil_images[0].size
-    better_pil_images = []
-    for image in pil_images:
-        better_pil_images.append(image.resize(video_size))
-            
-    
-    # Create a temporary directory to store the image files
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Save images as temporary files
-        image_paths = []
-        for i, image in enumerate(better_pil_images):
-            temp_image_path = os.path.join(temp_dir, f'image_{i:04d}.png')
-            image.save(temp_image_path, format='PNG')
-            image_paths.append(temp_image_path)
-
-        # Create a clip from the image sequence
-        clip = ImageSequenceClip(image_paths, fps=fps)
-
-        # Write the clip to a video file
-        clip.write_videofile(output_file, codec='libx264')
-
-    return output_file
-    
-
 def image_folder_to_video(folder_path, output_file, fps=24):
     """
     Turns a folder of images into a video using MoviePy.
@@ -576,42 +491,6 @@ def image_folder_to_video(folder_path, output_file, fps=24):
 
 
 
-def extract_frames_movpie(input_video, target_fps, max_frames=None):
-
-    def get_video_info(video_path):
-        cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', video_path]
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        return json.loads(result.stdout)
-
-    def create_temp_file(suffix):
-        temp_dir = tempfile.gettempdir()
-        temp_filename = f"{uuid.uuid4().hex}{suffix}"
-        return os.path.join(temp_dir, temp_filename)
-    
-    with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as f:
-        f.write(input_video)
-    video_path = f.name
-
-
-    video_info = get_video_info(video_path)
-    video_stream = next((stream for stream in video_info['streams'] if stream['codec_type'] == 'video'), None)
-    width = int(video_stream['width'])
-    height = int(video_stream['height'])
-
-    video_clip = VideoFileClip(video_path)
-    video_resampled = video_clip.set_fps(target_fps)
-
-    if max_frames is not None and max_frames > 0:
-        total_frames = video_resampled.duration * target_fps
-        if total_frames > max_frames:
-            end_time = max_frames / target_fps
-            video_resampled = video_resampled.subclip(0, end_time)
-
-    frames = []
-    for frame in video_resampled.iter_frames(dtype="uint8"):
-        frames.append(np.array(frame))
-
-    return frames
 
 
 def blend_batches(batch_before, current_batch,resolution, blend_start_ratio=0.9, blend_end_ratio=0.1):
@@ -644,12 +523,6 @@ def blend_batches(batch_before, current_batch,resolution, blend_start_ratio=0.9,
 
         blended_frames.append(blended_frame)
     return blended_frames
-
-
-
-# Example usage:
-#if __name__ == "__main__":
-#    process_video(video_path, fps=10, frames_limit=45, batch_size=5,fillindenoise=fill_in_denoise,edgedenoise=edge_denoise,_smol_resolution=smol_resolution)
 
 
 
@@ -694,3 +567,40 @@ def interpolate_video(input_path, output_path, output_fps):
     new_clip = ImageSequenceClip(new_frames, fps=output_fps)
     new_clip.write_videofile(output_path)
     return output_path
+
+
+def split_videos_into_smaller_videos(video,fps,max_frames,target_path,border_number, scenecuts = False):
+
+    split_frames,border_indices = divideFrames(video, max_frames,border_number)
+    print(f" transitions {border_indices}")
+    output_files = []
+    print(f"frames_total_size = {len(split_frames)}, frames batch size = {max_frames} array length = {len(split_frames)}")
+    for i,frames in enumerate(split_frames):
+        print (f"splitting video {i}")
+        new_folder_location = os.path.join(target_path, f"{i}")
+        if not os.path.exists(new_folder_location):
+            os.makedirs(new_folder_location)
+        new_video_loc = os.path.join(new_folder_location, f"input_video.mp4")
+        output_files.append(utilityb.pil_images_to_video(frames, new_video_loc, fps))
+    return output_files,border_indices
+
+
+def divideFrames(frame_groups, x, y):
+    result = []
+    transitions = []
+    
+    for index, group in enumerate( frame_groups):
+        start = 0
+        while start < len(group):
+            end = start + x
+            new_group = group[start:end]
+
+            if end + y <= len(group):
+                overlap_group = group[end:end+y]
+                new_group += overlap_group
+                transitions.append(len(result))
+
+            result.append(new_group)
+            start += x
+
+    return result,transitions

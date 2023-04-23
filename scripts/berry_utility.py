@@ -1,5 +1,7 @@
 import os
 import glob
+from moviepy.editor import *
+import tempfile
 #om nom nom nom
 import requests
 import json
@@ -12,7 +14,10 @@ from PIL import Image, ImageOps,ImageFilter
 import io
 from collections import deque
 import cv2
-
+import copy
+import shutil
+import subprocess
+import scenedetect
 
 window_size = 5 
 
@@ -433,3 +438,236 @@ def check_edges(image):
 
                 if is_different(image[i, j], image[central_i, central_j]):
                     image[i, j] = image[central_i, central_j]
+
+
+def resize_to_nearest_multiple_of_8(width, height):
+    def nearest_multiple(n, factor):
+        return round(n / factor) * factor
+
+    new_width = nearest_multiple(width, 8)
+    new_height = nearest_multiple(height, 8)
+    return new_width, new_height
+
+
+
+def resize_to_nearest_multiple(width, height, a):
+    def nearest_common_multiple(target, a, b):
+        multiple = 1
+        nearest_multiple = 0
+        min_diff = float('inf')
+
+        while True:
+            current_multiple = a * multiple
+            if current_multiple % b == 0:
+                diff = abs(target - current_multiple)
+                if diff < min_diff:
+                    min_diff = diff
+                    nearest_multiple = current_multiple
+                else:
+                    break
+            multiple += 1
+
+        return nearest_multiple
+
+    new_width = nearest_common_multiple(width, a, 8)
+    new_height = nearest_common_multiple(height, a, 8)
+    return int(new_width), int(new_height)
+
+
+def delete_folder_contents(folder_path):
+    for filename in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print(f'Failed to delete {file_path}. Reason: {e}')
+
+def blend_images(img1, img2, alpha=0.5):
+    blended = cv2.addWeighted(img1, alpha, img2, 1-alpha, 0)
+    return blended
+
+
+def pil_images_to_video(pil_images, output_file, fps=24):
+    """
+    Saves an array of PIL images to a video file using MoviePy.
+
+    Args:
+        pil_images (list): A list of PIL images.
+        output_file (str): The output file path for the video.
+        fps (int, optional): The desired frames per second. Defaults to 24.
+
+    Returns:
+        the filepath of the video file
+    """
+    # Convert PIL images to NumPy arrays
+    np_images = [np.array(img) for img in pil_images]
+
+    # Create an ImageSequenceClip instance with the array of NumPy images and the specified fps
+    clip = ImageSequenceClip(np_images, fps=fps)
+
+    # Write the video file to the specified output location
+    clip.write_videofile(output_file)
+
+    return output_file
+
+
+def crossfade_frames(frame1, frame2, alpha):
+    """Crossfade between two video frames with a given alpha value."""
+    image1 = Image.fromarray(frame1)
+    image2 = Image.fromarray(frame2)
+    blended_image = crossfade_images(image1, image2, alpha)
+    blended_image = blended_image.convert('RGB')
+    #THIS FUNCTION CONSUMED 3 HOURS OF DEBUGING AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+    return np.array(blended_image)
+       
+
+
+
+def crossfade_videos(video_paths,fps, overlap_indexes, num_overlap_frames, output_path):
+
+    """
+        a python function and i need it to input an array of video paths,
+        an array of the indexes where the videos overlap with the next video,
+        the number of overlapping frames and the next file and i need it to combine these
+        clips while crossfading between the clips where there is overlapping happening and 
+        output it to the output file location
+    """
+
+
+    original_frames_arrays = []
+    for i in range(len(video_paths)):
+        data = convert_video_to_bytes(video_paths[i])
+        frames_list = extract_frames_movpie(data, fps)
+        original_frames_arrays.append(frames_list)
+        print (f"video {i} has {len(frames_list)} frames")
+    new_frames_arrays = copy.deepcopy(original_frames_arrays)
+    
+    for index, frames_array in enumerate(original_frames_arrays):
+        if index < len(original_frames_arrays) - 1 and index in overlap_indexes:
+            next_array = original_frames_arrays[index+1]
+            print (f"crossfading between video {index} and video {index+1}")
+            first_of_next = next_array[:num_overlap_frames]
+            last_of_current = frames_array[-num_overlap_frames:]
+            #last_of_current = last_of_current[::-1]
+            if len(first_of_next) != len(last_of_current):
+                print ("crossfade frames are not the same length")
+                while len(first_of_next) != len(last_of_current):
+                    if len(first_of_next) > len(last_of_current):
+                        first_of_next.pop()  # remove the last element from array1
+                    else:
+                        last_of_current.pop()  # remove the last element from array2
+                
+            crossfaded = []
+            for i in range(num_overlap_frames - 1):
+                alpha = 1 - (i / num_overlap_frames) # set alpha value
+                if i > len(last_of_current) - 1 or i > len(first_of_next) - 1:
+                    
+                    print ("ran out of crossfade space at index ",str(i))
+                    break;
+                
+                new_frame = crossfade_frames(last_of_current[i], first_of_next[i], alpha)
+                #print (new_frame.shape)
+                crossfaded.append(new_frame)
+            np.concatenate((new_frames_arrays[index][-num_overlap_frames:], crossfaded))
+
+        if index > 0 and index - 1 in overlap_indexes:
+            new_frames_arrays[index] = new_frames_arrays[index][num_overlap_frames:]
+
+    for arr in new_frames_arrays:
+        print(len(arr))
+    combined_arrays = np.concatenate(new_frames_arrays)
+    return pil_images_to_video(combined_arrays, output_path, fps)
+
+
+
+
+def crossfade_images(image1, image2, alpha):
+    """Crossfade between two images with a given alpha value."""
+    image1 = image1.convert("RGBA")
+    image2 = image2.convert("RGBA")
+    return Image.blend(image1, image2, alpha)
+
+
+def extract_frames_movpie(input_video, target_fps, max_frames=None):
+
+    def get_video_info(video_path):
+        cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', video_path]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        return json.loads(result.stdout)
+
+    
+    with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as f:
+        f.write(input_video)
+    video_path = f.name
+
+
+    video_info = get_video_info(video_path)
+    video_stream = next((stream for stream in video_info['streams'] if stream['codec_type'] == 'video'), None)
+    width = int(video_stream['width'])
+    height = int(video_stream['height'])
+
+    video_clip = VideoFileClip(video_path)
+    video_resampled = video_clip.set_fps(target_fps)
+
+    if max_frames is not None and max_frames > 0:
+        total_frames = video_resampled.duration * target_fps
+        if total_frames > max_frames:
+            end_time = max_frames / target_fps
+            video_resampled = video_resampled.subclip(0, end_time)
+
+    frames = []
+    for frame in video_resampled.iter_frames(dtype="uint8"):
+        frames.append(np.array(frame))
+
+    return frames
+
+
+def convert_video_to_bytes(input_file):
+    # Read the uploaded video file
+    print(f"reading video file... {input_file}")
+    with open(input_file, "rb") as f:
+        video_bytes = f.read()
+
+    # Return the processed video bytes (or any other output you want)
+    return video_bytes
+
+def split_video_into_numpy_arrays(video_path):
+    video_manager = scenedetect.VideoManager([video_path])
+    scene_manager = scenedetect.SceneManager()
+    scene_manager.add_detector(scenedetect.ContentDetector())
+
+    video_manager.set_downscale_factor()
+    video_manager.start()
+
+    scene_manager.detect_scenes(frame_source=video_manager)
+    scene_list = scene_manager.get_scene_list()
+
+    numpy_arrays = save_scenes_as_numpy_arrays(scene_list, video_path)
+
+    print(f"Total scenes: {len(numpy_arrays)}")
+    return numpy_arrays
+
+def save_scenes_as_numpy_arrays(scene_list, video_path):
+    numpy_arrays = []
+    video_capture = cv2.VideoCapture(video_path)
+
+    for start_time, end_time in scene_list:
+        start_frame = int(start_time.get_frames())
+        end_frame = int(end_time.get_frames())
+        scene_frames = []
+
+        for frame_num in range(start_frame, end_frame + 1):
+            video_capture.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
+            ret, frame = video_capture.read()
+
+            if ret:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                scene_frames.append(frame)
+
+        numpy_arrays.append(np.array(scene_frames))
+
+    video_capture.release()
+    return numpy_arrays

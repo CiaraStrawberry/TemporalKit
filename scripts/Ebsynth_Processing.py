@@ -7,6 +7,7 @@ from pprint import pprint
 import base64
 import numpy as np
 from io import BytesIO
+import extensions.TemporalKit.scripts.berry_utility
 import scripts.optical_flow_simple as opflow
 from PIL import Image, ImageOps,ImageFilter
 import io
@@ -18,11 +19,15 @@ import re
 
 
 
-def sort_into_folders(video_path, fps, per_side, batch_size, fillindenoise, edgedenoise, _smol_resolution,square_textures,max_frames,output_folder,border):
+def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution,square_textures,max_frames,output_folder,border):
     border = 0
     per_batch_limmit = (((per_side * per_side) * batch_size)) + border
     video_data = bmethod.convert_video_to_bytes(video_path)
-    frames = bmethod.extract_frames_movpie(video_data, fps, max_frames)
+    frames = butility.extract_frames_movpie(video_data, fps, max_frames)
+    
+
+
+    
     print(f"full frames num = {len(frames)}")
 
 
@@ -96,15 +101,10 @@ def recombine (video_path, fps, per_side, batch_size, fillindenoise, edgedenoise
     combined = bmethod.merge_image_batches(just_frame_groups, border)
 
     save_loc = os.path.join(output_folder, "non_blended.mp4")
-    generated_vid = bmethod.pil_images_to_video(combined,save_loc, fps)
+    generated_vid = extensions.TemporalKit.scripts.berry_utility.pil_images_to_video(combined,save_loc, fps)
 
 
 
-def crossfade_images(image1, image2, alpha):
-    """Crossfade between two images with a given alpha value."""
-    image1 = image1.convert("RGBA")
-    image2 = image2.convert("RGBA")
-    return Image.blend(image1, image2, alpha)
 
 def crossfade_folder_of_folders(output_folder, fps):
     """Crossfade between images in a folder of folders and save the results."""
@@ -149,7 +149,7 @@ def crossfade_folder_of_folders(output_folder, fps):
             image1 = Image.open(image1_path)
             image2 = Image.open(image2_path)
 
-            blended_image = crossfade_images(image1, image2, alpha)
+            blended_image = butility.crossfade_images(image1, image2, alpha)
             output_images.append(np.array(blended_image))
             # blended_image.save(os.path.join(output_folder, f"{dirs[i]}_{dirs[i+1]}_crossfade_{j:04}.png"))
 
@@ -157,6 +157,8 @@ def crossfade_folder_of_folders(output_folder, fps):
     for c in range(allkeynums[-1], len(final_dir)):
         
         images_final = sorted(os.listdir(final_dir))
+        if c >= len(images_final):
+            break
         image1_path = os.path.join(final_dir, images_final[c])
         image1 = Image.open(image1_path)
         output_images.append(np.array(image1))
@@ -164,7 +166,7 @@ def crossfade_folder_of_folders(output_folder, fps):
 
 
     output_save_location = os.path.join(output_folder, "crossfade.mp4")
-    generated_vid = bmethod.pil_images_to_video(output_images, output_save_location, fps)
+    generated_vid = extensions.TemporalKit.scripts.berry_utility.pil_images_to_video(output_images, output_save_location, fps)
     return generated_vid
 
 def getkeynums (folder_path):
