@@ -66,7 +66,7 @@ def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution,sq
     bigbatches,frameLocs = bmethod.split_frames_into_big_batches(frames, per_batch_limmit,border,ebsynth=True,returnframe_locations=True)
     bigprocessedbatches = []
 
-
+    last_frame_end = 0
     print (len(square_textures))
     for a,bigbatch in enumerate(bigbatches):
         batches = bmethod.split_into_batches(bigbatches[a], batch_size,per_side* per_side)
@@ -76,11 +76,14 @@ def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution,sq
             resized_square_texture = cv2.resize(square_textures[a], (original_width, original_height), interpolation=cv2.INTER_LINEAR)
             new_frames = bmethod.split_square_texture(resized_square_texture,len(keyframes), per_side* per_side,_smol_resolution,True)
             new_frame_start,new_frame_end = frameLocs[a]
+            
             for b in range(len(new_frames)):
                 print (new_frame_start)
-                inner_start = new_frame_start + (b * len(batches[b]))
-                inner_end = new_frame_start + (b+1) * len(batches[b])
+                inner_start = last_frame_end
+                inner_end = inner_start + len(batches[b])
+                last_frame_end = inner_end
                 frame_position  = inner_start + int((inner_end - inner_start)/2)
+                print (f"saving at frame {frame_position}")
                 frame_to_save = cv2.resize(new_frames[b], (_smol_frame_width, _smol_frame_height), interpolation=cv2.INTER_LINEAR)
                 bmethod.save_square_texture(frame_to_save, os.path.join(output_keys_folder, "keys{:05d}.png".format(frame_position)))
     

@@ -53,7 +53,7 @@ def upload_file(files):
     return file_paths
 
 
-def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_frames,output_path,border_frames,ebsynth_mode,split_video,split_based_on_cuts):
+def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_frames,output_path,border_frames,ebsynth_mode,split_video,split_based_on_cuts,interpolate):
     input_folder_loc = os.path.join(output_path, "input")
     output_folder_loc = os.path.join(output_path, "output")
     if not os.path.exists(input_folder_loc):
@@ -74,21 +74,25 @@ def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_fram
 
         
     if split_video == True:
+
+        #max frames only applies in batch mode
+        #otherwise it limmits the number of *total frames*
         border_frames = border_frames * batch_size
-        if max_frames < 1 or max_keys > 20:
-            max_frames = (20 * batch_size) - border_frames
-        else:
-            max_frames = (max_frames - border_frames)
-        
+
+        max_frames = (20 * batch_size) - border_frames
+
         existing_frames = []
         if split_based_on_cuts == True:
-            existing_frames = sd_utility.split_video_into_numpy_arrays(video)
+            existing_frames = sd_utility.split_video_into_numpy_arrays(video,fps,interpolate)
         else:
             data = General_SD.convert_video_to_bytes(video)
-            existing_frames = sd_utility.extract_frames_movpie(data, fps)
-
-        split_video_paths,transition_data,original_frames = General_SD.split_videos_into_smaller_videos(existing_frames,fps,max_frames,output_path,border_frames,split_based_on_cuts)
+            existing_frames = [sd_utility.extract_frames_movpie(data, fps,max_frames,interpolate)]
+        if max_keys < 0:
+            max_keys = 10000
+            # would use math.inf in c#, dunno what that is in python
+        split_video_paths,transition_data = General_SD.split_videos_into_smaller_videos(max_keys,existing_frames,fps,max_frames,output_path,border_frames,split_based_on_cuts)
         for index,individual_video in enumerate(split_video_paths):
+            
             generated_textures = General_SD.generate_squares_to_folder(individual_video,fps=fps,batch_size=batch_size, resolution=resolution,size_size=per_side,max_frames=(max_frames + border_frames), output_folder=os.path.dirname(individual_video),border=0, ebsynth_mode=ebsynth_mode )
             input_location = os.path.join(os.path.dirname(os.path.dirname(individual_video)),"input")
             for tex_index,texture in enumerate(generated_textures):
@@ -97,6 +101,9 @@ def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_fram
         transitiondatapath = os.path.join(output_path,"transition_data.txt")
         with open(transitiondatapath, "w") as f:
             f.write(str(transition_data) + "\n")
+            f.write(str(border_frames) + "\n")
+        main_video_path = os.path.join(output_path,"main_video.mp4")
+        sd_utility.copy_video(video,main_video_path)
         return
 
 
@@ -132,9 +139,9 @@ def post_process_ebsynth(input_folder,video,fps,per_side,output_resolution,batch
     split_mode = os.path.join(input_folder, "keys")
     if os.path.exists(split_mode):
         return ebsynth.sort_into_folders(video_path=video,fps=fps,per_side=per_side,batch_size=batch_size,_smol_resolution=output_resolution,square_textures=images,max_frames=max_frames,output_folder=input_folder,border=border_frames)
-    else :
+    else:
         img_folder = os.path.join(input_folder, "output")
-        # define a regular expression pattern to match directory names that are just a number
+        # define a regular expression pattern to match directory names with one or more digits
         pattern = r'^\d+$'
 
         # get a list of all directories in the specified path
@@ -146,22 +153,25 @@ def post_process_ebsynth(input_folder,video,fps,per_side,output_resolution,batch
         for d in numeric_dirs:
             # create a list to store the filenames of the images that match the directory name
             img_names = []
-            folder_video = os.path.join(input_folder,d,"input_video.mp4")
+            folder_video = os.path.join(input_folder, d, "input_video.mp4")
             # loop through each image file in the image folder
             for img_file in os.listdir(img_folder):
-                # check if the image filename starts with the directory name and ends with '.png'
-                if img_file.startswith(d) and img_file.endswith('.png'):
+                # check if the image filename starts with the directory name followed by the word "and" and a sequence of one or more digits, then ends with '.png'
+                if re.match(f"^{d}and\d+.*\.png$", img_file):
                     img_names.append(img_file)
-            print (f"post processing = {os.path.dirname(folder_video)}")
+            print(f"post processing = {os.path.dirname(folder_video)}")
             square_textures = []
             # loop through each image file name
-            for img_name in img_names:
+            for img_name in sorted(img_names, key=lambda x: int(re.search(r'and(\d+)', x).group(1))):
                 img = Image.open(os.path.join(input_images_folder, img_name))
                 # Convert image to NumPy array and append to images list
+                print(f"saving {os.path.join(input_images_folder, img_name)}")
                 square_textures.append(np.array(img))
-            
-            ebsynth.sort_into_folders(video_path=folder_video,fps=fps,per_side=per_side,batch_size=batch_size,_smol_resolution=output_resolution,square_textures=square_textures,max_frames=max_frames,output_folder=os.path.dirname(folder_video),border=border_frames)
 
+            ebsynth.sort_into_folders(video_path=folder_video, fps=fps, per_side=per_side, batch_size=batch_size,
+                                    _smol_resolution=output_resolution, square_textures=square_textures,
+                                    max_frames=max_frames, output_folder=os.path.dirname(folder_video),
+                                    border=border_frames)
 
 def recombine_ebsynth(input_folder,fps,border_frames,batch):
     if os.path.exists(os.path.join(input_folder, "keys")):
@@ -320,6 +330,12 @@ def update_settings_from_file(folderpath):
         video_path = f.readline().strip()
         max_frames = int(f.readline().strip())
         border = int(f.readline().strip())
+
+    video_path = os.path.join(folderpath,"main_video.mp4")
+    transition_data_path = os.path.join(folderpath,"transition_data.txt")
+    with open(transition_data_path, "r") as b:
+        merge = str(b.readline().strip())
+        border = int(b.readline().strip())
     return fps,sides,batch_size,video_path,max_frames,border
 
 
@@ -366,6 +382,7 @@ def create_video_Processing_Tab():
                                         with gr.Row():
                                             split_video = gr.Checkbox(label="Split Video", value=False)
                                             split_based_on_cuts = gr.Checkbox(label="Split based on cuts (as well)", value=False)
+                                            interpolate = gr.Checkbox(label="Interpolate(high memory)", value=False)
 
 
             savesettings.click(
@@ -387,7 +404,7 @@ def create_video_Processing_Tab():
                     print("failed")
                     pass
     parameters_copypaste.add_paste_fields("TemporalKit", result_image,None)
-    runbutton.click(preprocess_video, [video,fps,batch_size,sides,resolution,batch_checkbox,max_keyframes,batch_folder,border_frames,ebsynth_mode,split_video,split_based_on_cuts], result_image)
+    runbutton.click(preprocess_video, [video,fps,batch_size,sides,resolution,batch_checkbox,max_keyframes,batch_folder,border_frames,ebsynth_mode,split_video,split_based_on_cuts,interpolate], result_image)
 
 
 def show_textbox(option):
@@ -460,7 +477,7 @@ def create_batch_tab ():
                                 output_resolution_batch = gr.Number(label="output resolution",value=1024,precision=1)
                                 batch_size = gr.Number(label="batch size",value=5,precision=1)
                                 max_frames = gr.Number(label="max frames",value=100,precision=1)
-                                border_frames = gr.Number(label="border frames",value=10,precision=1)
+                                border_frames = gr.Number(label="border frames",value=1,precision=1)
                             with gr.Row():
                                 runButton = gr.Button("run", elem_id="run_button")
                             
@@ -503,7 +520,7 @@ def create_ebsynth_tab():
                                 output_resolution_batch = gr.Number(label="output resolution",value=1024,precision=1)
                                 batch_size = gr.Number(label="batch size",value=5,precision=1)
                                 max_frames = gr.Number(label="max frames",value=100,precision=1)
-                                border_frames = gr.Number(value=3, label="Border Frames", precision=1, interactive=True,placeholder="border frames")
+                                border_frames = gr.Number(value=1, label="Border Frames", precision=1, interactive=True,placeholder="border frames")
                             with gr.Row():
                                 runButton = gr.Button("prepare ebsynth", elem_id="run_button")
                                 recombineButton = gr.Button("recombine ebsynth", elem_id="recombine_button")

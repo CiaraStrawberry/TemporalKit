@@ -509,10 +509,25 @@ def pil_images_to_video(pil_images, output_file, fps=24):
     clip = ImageSequenceClip(np_images, fps=fps)
 
     # Write the video file to the specified output location
-    clip.write_videofile(output_file)
+    clip.write_videofile(output_file,fps,codec='libx264')
 
     return output_file
 
+def copy_video(source_path, destination_path):
+    """
+    Copy a video file from source_path to destination_path.
+
+    :param source_path: str, path to the source video file
+    :param destination_path: str, path to the destination video file
+    :return: None
+    """
+    try:
+        shutil.copy(source_path, destination_path)
+        print(f"Video copied successfully from {source_path} to {destination_path}")
+    except IOError as e:
+        print(f"Unable to copy video. Error: {e}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
 
 def crossfade_frames(frame1, frame2, alpha):
     """Crossfade between two video frames with a given alpha value."""
@@ -571,15 +586,19 @@ def crossfade_videos(video_paths,fps, overlap_indexes, num_overlap_frames, outpu
                 new_frame = crossfade_frames(last_of_current[i], first_of_next[i], alpha)
                 #print (new_frame.shape)
                 crossfaded.append(new_frame)
-            np.concatenate((new_frames_arrays[index][-num_overlap_frames:], crossfaded))
+            new_frames_arrays[index][-num_overlap_frames:] = crossfaded
 
         if index > 0 and index - 1 in overlap_indexes:
             new_frames_arrays[index] = new_frames_arrays[index][num_overlap_frames:]
 
     for arr in new_frames_arrays:
         print(len(arr))
-    combined_arrays = np.concatenate(new_frames_arrays)
-    return pil_images_to_video(combined_arrays, output_path, fps)
+    #combined_arrays = np.concatenate(new_frames_arrays)
+    output_array = []
+    for arr in new_frames_arrays:
+        for frame in arr:
+            output_array.append(Image.fromarray(frame))
+    return pil_images_to_video(output_array, output_path, fps)
 
 
 
@@ -591,39 +610,51 @@ def crossfade_images(image1, image2, alpha):
     return Image.blend(image1, image2, alpha)
 
 
-def extract_frames_movpie(input_video, target_fps, max_frames=None):
+def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_interpolation=True):
+    print("Interpolating extra frames")
 
     def get_video_info(video_path):
         cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', video_path]
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         return json.loads(result.stdout)
 
-    
+    def interpolate_frames(frame1, frame2, ratio):
+        flow = cv2.calcOpticalFlowFarneback(cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY), cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY), None, 0.5, 3, 15, 3, 5, 1.2, 0)
+        return cv2.addWeighted(frame1, 1 - ratio, frame2, ratio, 0) + ratio * cv2.remap(frame1, flow * (1 - ratio), None, cv2.INTER_LINEAR)
+
     with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as f:
         f.write(input_video)
     video_path = f.name
 
-
     video_info = get_video_info(video_path)
     video_stream = next((stream for stream in video_info['streams'] if stream['codec_type'] == 'video'), None)
-    width = int(video_stream['width'])
-    height = int(video_stream['height'])
+    original_fps = float(video_stream['avg_frame_rate'].split('/')[0])
 
     video_clip = VideoFileClip(video_path)
-    video_resampled = video_clip.set_fps(target_fps)
-
-    if max_frames is not None and max_frames > 0:
-        total_frames = video_resampled.duration * target_fps
-        if total_frames > max_frames:
-            end_time = max_frames / target_fps
-            video_resampled = video_resampled.subclip(0, end_time)
+    video_duration = video_clip.duration
 
     frames = []
-    for frame in video_resampled.iter_frames(dtype="uint8"):
-        frames.append(np.array(frame))
+    frame_ratio = original_fps / target_fps
+    frame_time = 1 / target_fps
+    current_time = 0
 
+    while current_time < video_duration:
+        frame1_time = current_time * frame_ratio
+        frame2_time = min((current_time + frame_time) * frame_ratio, video_duration)
+        frame1 = video_clip.get_frame(frame1_time)
+        frame2 = video_clip.get_frame(frame2_time)
+
+        if not perform_interpolation or target_fps <= original_fps:
+            frame = frame1
+        else:
+            ratio = (frame1_time * original_fps) % 1
+            frame = interpolate_frames(frame1, frame2, ratio)
+
+        frames.append(frame)
+        current_time += frame_time
+        
+    print(f"Extracted {len(frames)} frames at {target_fps} fps over a clip with a length of {len(frames) / target_fps} seconds with the old duration of {video_duration} seconds")
     return frames
-
 
 def convert_video_to_bytes(input_file):
     # Read the uploaded video file
@@ -634,7 +665,8 @@ def convert_video_to_bytes(input_file):
     # Return the processed video bytes (or any other output you want)
     return video_bytes
 
-def split_video_into_numpy_arrays(video_path):
+def split_video_into_numpy_arrays(video_path, target_fps=None, perform_interpolation=False):
+
     video_manager = scenedetect.VideoManager([video_path])
     scene_manager = scenedetect.SceneManager()
     scene_manager.add_detector(scenedetect.ContentDetector())
@@ -644,29 +676,65 @@ def split_video_into_numpy_arrays(video_path):
 
     scene_manager.detect_scenes(frame_source=video_manager)
     scene_list = scene_manager.get_scene_list()
+    
+    if target_fps is not None:
+        original_fps = video_manager.get(cv2.CAP_PROP_FPS)
 
-    numpy_arrays = save_scenes_as_numpy_arrays(scene_list, video_path)
+    numpy_arrays = save_scenes_as_numpy_arrays(scene_list, video_path, target_fps, original_fps if target_fps else None, perform_interpolation)
 
     print(f"Total scenes: {len(numpy_arrays)}")
     return numpy_arrays
 
-def save_scenes_as_numpy_arrays(scene_list, video_path):
+def save_scenes_as_numpy_arrays(scene_list, video_path, target_fps=None, original_fps=None, perform_interpolation=True):
+    def interpolate_frames(frame1, frame2, ratio):
+        flow = cv2.calcOpticalFlowFarneback(cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY), cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY), None, 0.5, 3, 15, 3, 5, 1.2, 0)
+        return cv2.addWeighted(frame1, 1 - ratio, frame2, ratio, 0) + ratio * cv2.remap(frame1, flow * (1 - ratio), None, cv2.INTER_LINEAR)
+
     numpy_arrays = []
     video_capture = cv2.VideoCapture(video_path)
+    
+    if target_fps and original_fps:
+        frame_ratio = original_fps / target_fps
+        frame_time = 1 / target_fps
 
-    for start_time, end_time in scene_list:
+    for i, (start_time, end_time) in enumerate(scene_list):
         start_frame = int(start_time.get_frames())
         end_frame = int(end_time.get_frames())
         scene_frames = []
+        current_time = start_frame / original_fps if target_fps else start_frame
 
-        for frame_num in range(start_frame, end_frame + 1):
-            video_capture.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
-            ret, frame = video_capture.read()
+        print(f"Processing scene {i + 1}: start_frame={start_frame}, end_frame={end_frame} original fps={original_fps} target fps={target_fps}")
+
+        while current_time < end_frame / original_fps if target_fps else end_frame:
+            if target_fps and original_fps and perform_interpolation:
+                frame1_time = current_time * frame_ratio
+                frame2_time = min((current_time + frame_time) * frame_ratio, end_frame / original_fps)
+            else:
+                frame1_time = current_time
+                frame2_time = current_time
+
+            video_capture.set(cv2.CAP_PROP_POS_FRAMES, frame1_time * original_fps if target_fps else frame1_time)
+            ret, frame1 = video_capture.read()
 
             if ret:
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                scene_frames.append(frame)
+                frame1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2RGB)
 
+            if target_fps and original_fps and perform_interpolation:
+                video_capture.set(cv2.CAP_PROP_POS_FRAMES, frame2_time * original_fps)
+                ret, frame2 = video_capture.read()
+
+                if ret:
+                    frame2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2RGB)
+
+                ratio = (frame1_time * original_fps) % 1
+                frame = interpolate_frames(frame1, frame2, ratio)
+            else:
+                frame = frame1
+
+            scene_frames.append(frame)
+            
+            current_time += frame_time if target_fps else 1
+        print(f"Scene {i + 1} has {len(scene_frames)} frames with length of {len(scene_frames)} frames with the old duration of {end_frame - start_frame} frames")
         numpy_arrays.append(np.array(scene_frames))
 
     video_capture.release()

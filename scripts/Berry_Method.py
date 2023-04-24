@@ -209,8 +209,7 @@ def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size
     per_batch_limmit = ((size_size * size_size) * batch_size) + border
     #if ebsynth_mode == False:
     #    per_batch_limmit = per_batch_limmit + border
-    frames = utilityb.extract_frames_movpie(video_data, fps, max_frames)
-
+    frames = utilityb.extract_frames_movpie(video_data, fps, max_frames,False)
 
     bigbatches = split_frames_into_big_batches(frames, per_batch_limmit,border,ebsynth=ebsynth_mode)
     square_textures = []
@@ -241,13 +240,7 @@ def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size
         f.write(str(border) + "\n")
     #return list of urls
 
-    original_frames_folder_path = os.path.join(output_folder, "original_frames")
-    print ("saving urls to " + original_frames_folder_path)
 
-    if not os.path.exists(original_frames_folder_path):
-        os.makedirs(original_frames_folder_path)
-    for i in range(len(frames)):
-        cv2.imwrite(os.path.join(original_frames_folder_path, f"frame{i}.png"), cv2.cvtColor( frames[i], cv2.COLOR_BGR2RGB))
     
     return square_textures
 
@@ -579,29 +572,30 @@ def interpolate_video(input_path, output_path, output_fps):
     return output_path
 
 
-def split_videos_into_smaller_videos(video,fps,max_frames,target_path,border_number, scenecuts = False):
-
+def split_videos_into_smaller_videos(max_keys,video,fps,max_frames,target_path,border_number, scenecuts = False):
+    max_total_frames = int((max_keys / 20) * max_frames)
     split_frames,border_indices = divideFrames(video, max_frames,border_number)
-    print(f" transitions {border_indices}")
+    split_frames_trimmed,trimmed_borders = trim_images(split_frames,max_total_frames,border_indices )
+    print(f" trim_imagestransitions {border_indices}")
     output_files = []
-    print(f"frames_total_size = {len(split_frames)}, frames batch size = {max_frames} array length = {len(split_frames)}")
-    original_frames = []
-    for i,frames in enumerate(split_frames):
+    print(f"frames_total_size = {len(split_frames_trimmed)}, frames batch size = {max_frames} array length = {len(split_frames_trimmed)}")
+
+    for i,frames in enumerate(split_frames_trimmed):
         print (f"splitting video {i}")
         new_folder_location = os.path.join(target_path, f"{i}")
         if not os.path.exists(new_folder_location):
             os.makedirs(new_folder_location)
         new_video_loc = os.path.join(new_folder_location, f"input_video.mp4")
         output_files.append(utilityb.pil_images_to_video(frames, new_video_loc, fps))
-        original_frames.append(frames)
-    return output_files,border_indices,original_frames
+    return output_files,trimmed_borders
 
 
 def divideFrames(frame_groups, x, y):
     result = []
     transitions = []
-    
-    for index, group in enumerate( frame_groups):
+
+    for index, group in enumerate(frame_groups):
+        print (f"frame_groups {len(group)}")    
         start = 0
         while start < len(group):
             end = start + x
@@ -609,10 +603,50 @@ def divideFrames(frame_groups, x, y):
 
             if end + y <= len(group):
                 overlap_group = group[end:end+y]
-                new_group += overlap_group
+
+                # Resize the images in new_group and overlap_group to ensure they have the same shape
+                #reference_shape = new_group[0].shape
+                #new_group_resized = [cv2.resize(img, (reference_shape[1], reference_shape[0])) for img in new_group]
+                #overlap_group_resized = [cv2.resize(img, (reference_shape[1], reference_shape[0])) for img in overlap_group]
+
+                # Concatenate the images from new_group and overlap_group
+                combined_group = np.concatenate((new_group, overlap_group), axis=0)
                 transitions.append(len(result))
 
-            result.append(new_group)
+            else:
+                combined_group = new_group
+
+            result.append(combined_group)
             start += x
 
     return result,transitions
+
+
+def trim_images(images_list_of_lists, max_images,border_indices):
+    """
+    Trims the given list of lists of image arrays so that the total number of image arrays is below the specified maximum.
+    Removes whole image arrays from the end of the list of lists if the max_images doesn't include them.
+
+    Parameters:
+    images_list_of_lists (list): List of lists of NumPy image arrays
+    max_images (int): Maximum number of image arrays allowed
+
+    Returns:
+    list: List of lists of trimmed image arrays
+    """
+    total_images = sum([len(img_list) for img_list in images_list_of_lists])
+
+    while total_images > max_images:
+        print (f"total_images = {total_images}, max_images = {max_images}")
+        last_list_idx = len(images_list_of_lists) - 1
+        last_img_idx = len(images_list_of_lists[last_list_idx]) - 1
+        
+        if last_img_idx >= 0:
+            total_images -= 1
+            images_list_of_lists[last_list_idx].pop()
+
+        if len(images_list_of_lists[last_list_idx]) == 0:
+            images_list_of_lists.pop()
+            border_indices.pop()
+
+    return images_list_of_lists,border_indices
