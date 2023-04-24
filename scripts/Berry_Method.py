@@ -223,7 +223,8 @@ def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size
             keyframes = [batch[0] for batch in batches]  
         else: 
             keyframes = [batch[int(len(batch)/2)] for batch in batches]
-        
+        for batch in batches:
+            print (f"framenum = {int(len(batch)/2)} out of batch length {len(batch)} and size {len(frames)}")
         square_texture = create_square_texture(keyframes, resolution,side_length=size_size)
         save_square_texture(square_texture, os.path.join(input_folder_loc, f"input{i}.png"))
         square_textures.append(square_texture)
@@ -239,6 +240,15 @@ def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size
         f.write(str(max_frames) + "\n")
         f.write(str(border) + "\n")
     #return list of urls
+
+    original_frames_folder_path = os.path.join(output_folder, "original_frames")
+    print ("saving urls to " + original_frames_folder_path)
+
+    if not os.path.exists(original_frames_folder_path):
+        os.makedirs(original_frames_folder_path)
+    for i in range(len(frames)):
+        cv2.imwrite(os.path.join(original_frames_folder_path, f"frame{i}.png"), cv2.cvtColor( frames[i], cv2.COLOR_BGR2RGB))
+    
     return square_textures
 
 
@@ -575,6 +585,7 @@ def split_videos_into_smaller_videos(video,fps,max_frames,target_path,border_num
     print(f" transitions {border_indices}")
     output_files = []
     print(f"frames_total_size = {len(split_frames)}, frames batch size = {max_frames} array length = {len(split_frames)}")
+    original_frames = []
     for i,frames in enumerate(split_frames):
         print (f"splitting video {i}")
         new_folder_location = os.path.join(target_path, f"{i}")
@@ -582,7 +593,8 @@ def split_videos_into_smaller_videos(video,fps,max_frames,target_path,border_num
             os.makedirs(new_folder_location)
         new_video_loc = os.path.join(new_folder_location, f"input_video.mp4")
         output_files.append(utilityb.pil_images_to_video(frames, new_video_loc, fps))
-    return output_files,border_indices
+        original_frames.append(frames)
+    return output_files,border_indices,original_frames
 
 
 def divideFrames(frame_groups, x, y):

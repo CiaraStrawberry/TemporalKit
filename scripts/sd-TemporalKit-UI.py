@@ -87,7 +87,7 @@ def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_fram
             data = General_SD.convert_video_to_bytes(video)
             existing_frames = sd_utility.extract_frames_movpie(data, fps)
 
-        split_video_paths,transition_data = General_SD.split_videos_into_smaller_videos(existing_frames,fps,max_frames,output_path,border_frames,split_based_on_cuts)
+        split_video_paths,transition_data,original_frames = General_SD.split_videos_into_smaller_videos(existing_frames,fps,max_frames,output_path,border_frames,split_based_on_cuts)
         for index,individual_video in enumerate(split_video_paths):
             generated_textures = General_SD.generate_squares_to_folder(individual_video,fps=fps,batch_size=batch_size, resolution=resolution,size_size=per_side,max_frames=(max_frames + border_frames), output_folder=os.path.dirname(individual_video),border=0, ebsynth_mode=ebsynth_mode )
             input_location = os.path.join(os.path.dirname(os.path.dirname(individual_video)),"input")

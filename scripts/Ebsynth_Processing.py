@@ -22,18 +22,27 @@ import re
 def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution,square_textures,max_frames,output_folder,border):
     border = 0
     per_batch_limmit = (((per_side * per_side) * batch_size)) + border
+
+    frames = []
+  #  original_frames_directory = os.path.join(output_folder, "original_frames")
+  #  if os.path.exists(original_frames_directory):
+  #      for filename in os.listdir(original_frames_directory):
+  #          frames.append(cv2.imread(os.path.join(original_frames_directory, filename), cv2.COLOR_BGR2RGB))
+  #  else:
     video_data = bmethod.convert_video_to_bytes(video_path)
     frames = butility.extract_frames_movpie(video_data, fps, max_frames)
-    
-
-
     
     print(f"full frames num = {len(frames)}")
 
 
     output_frames_folder = os.path.join(output_folder, "frames")
+    if not os.path.exists(output_frames_folder):
+        os.makedirs(output_frames_folder)
     output_keys_folder = os.path.join(output_folder, "keys")
+    if not os.path.exists(output_keys_folder):
+        os.makedirs(output_keys_folder)
     input_folder = os.path.join(output_folder, "input")
+
     filenames = os.listdir(input_folder)
     img = Image.open(os.path.join(input_folder, filenames[0]))
     original_width, original_height = img.size
@@ -69,8 +78,8 @@ def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution,sq
             new_frame_start,new_frame_end = frameLocs[a]
             for b in range(len(new_frames)):
                 print (new_frame_start)
-                inner_start = new_frame_start + (b * batch_size)
-                inner_end = new_frame_start + ((b+1) * batch_size)
+                inner_start = new_frame_start + (b * len(batches[b]))
+                inner_end = new_frame_start + (b+1) * len(batches[b])
                 frame_position  = inner_start + int((inner_end - inner_start)/2)
                 frame_to_save = cv2.resize(new_frames[b], (_smol_frame_width, _smol_frame_height), interpolation=cv2.INTER_LINEAR)
                 bmethod.save_square_texture(frame_to_save, os.path.join(output_keys_folder, "keys{:05d}.png".format(frame_position)))
