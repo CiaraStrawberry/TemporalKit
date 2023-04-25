@@ -7,6 +7,7 @@ from pprint import pprint
 import base64
 import numpy as np
 from io import BytesIO
+import extensions.TemporalKit.scripts.berry_utility
 import scripts.optical_flow_simple as opflow
 from PIL import Image, ImageOps,ImageFilter
 import io
@@ -18,17 +19,30 @@ import re
 
 
 
-def sort_into_folders(video_path, fps, per_side, batch_size, fillindenoise, edgedenoise, _smol_resolution,square_textures,max_frames,output_folder,border):
+def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution,square_textures,max_frames,output_folder,border):
     border = 0
     per_batch_limmit = (((per_side * per_side) * batch_size)) + border
+
+    frames = []
+  #  original_frames_directory = os.path.join(output_folder, "original_frames")
+  #  if os.path.exists(original_frames_directory):
+  #      for filename in os.listdir(original_frames_directory):
+  #          frames.append(cv2.imread(os.path.join(original_frames_directory, filename), cv2.COLOR_BGR2RGB))
+  #  else:
     video_data = bmethod.convert_video_to_bytes(video_path)
-    frames = bmethod.extract_frames_movpie(video_data, fps, max_frames)
+    frames = butility.extract_frames_movpie(video_data, fps, max_frames)
+    
     print(f"full frames num = {len(frames)}")
 
 
     output_frames_folder = os.path.join(output_folder, "frames")
+    if not os.path.exists(output_frames_folder):
+        os.makedirs(output_frames_folder)
     output_keys_folder = os.path.join(output_folder, "keys")
+    if not os.path.exists(output_keys_folder):
+        os.makedirs(output_keys_folder)
     input_folder = os.path.join(output_folder, "input")
+
     filenames = os.listdir(input_folder)
     img = Image.open(os.path.join(input_folder, filenames[0]))
     original_width, original_height = img.size
@@ -52,7 +66,7 @@ def sort_into_folders(video_path, fps, per_side, batch_size, fillindenoise, edge
     bigbatches,frameLocs = bmethod.split_frames_into_big_batches(frames, per_batch_limmit,border,ebsynth=True,returnframe_locations=True)
     bigprocessedbatches = []
 
-
+    last_frame_end = 0
     print (len(square_textures))
     for a,bigbatch in enumerate(bigbatches):
         batches = bmethod.split_into_batches(bigbatches[a], batch_size,per_side* per_side)
@@ -62,11 +76,14 @@ def sort_into_folders(video_path, fps, per_side, batch_size, fillindenoise, edge
             resized_square_texture = cv2.resize(square_textures[a], (original_width, original_height), interpolation=cv2.INTER_LINEAR)
             new_frames = bmethod.split_square_texture(resized_square_texture,len(keyframes), per_side* per_side,_smol_resolution,True)
             new_frame_start,new_frame_end = frameLocs[a]
+            
             for b in range(len(new_frames)):
                 print (new_frame_start)
-                inner_start = new_frame_start + (b * batch_size)
-                inner_end = new_frame_start + ((b+1) * batch_size)
+                inner_start = last_frame_end
+                inner_end = inner_start + len(batches[b])
+                last_frame_end = inner_end
                 frame_position  = inner_start + int((inner_end - inner_start)/2)
+                print (f"saving at frame {frame_position}")
                 frame_to_save = cv2.resize(new_frames[b], (_smol_frame_width, _smol_frame_height), interpolation=cv2.INTER_LINEAR)
                 bmethod.save_square_texture(frame_to_save, os.path.join(output_keys_folder, "keys{:05d}.png".format(frame_position)))
     
@@ -96,17 +113,12 @@ def recombine (video_path, fps, per_side, batch_size, fillindenoise, edgedenoise
     combined = bmethod.merge_image_batches(just_frame_groups, border)
 
     save_loc = os.path.join(output_folder, "non_blended.mp4")
-    generated_vid = bmethod.pil_images_to_video(combined,save_loc, fps)
+    generated_vid = extensions.TemporalKit.scripts.berry_utility.pil_images_to_video(combined,save_loc, fps)
 
 
 
-def crossfade_images(image1, image2, alpha):
-    """Crossfade between two images with a given alpha value."""
-    image1 = image1.convert("RGBA")
-    image2 = image2.convert("RGBA")
-    return Image.blend(image1, image2, alpha)
 
-def crossfade_folder_of_folders(output_folder, fps):
+def crossfade_folder_of_folders(output_folder, fps,return_generated_video_path=False):
     """Crossfade between images in a folder of folders and save the results."""
     root_folder = output_folder
     all_dirs = [d for d in os.listdir(root_folder) if os.path.isdir(os.path.join(root_folder, d))]
@@ -140,7 +152,7 @@ def crossfade_folder_of_folders(output_folder, fps):
 
 
 
-        for j in range(keynum, len(images_current)):
+        for j in range(keynum, len(images_current) - 1):
             alpha = (j - keynum) / (len(images_current) - keynum)
             image1_path = os.path.join(current_dir, images_current[j])
             next_image_index = j - keynum if j - keynum < len(images_next) else len(images_next) - 1
@@ -149,23 +161,29 @@ def crossfade_folder_of_folders(output_folder, fps):
             image1 = Image.open(image1_path)
             image2 = Image.open(image2_path)
 
-            blended_image = crossfade_images(image1, image2, alpha)
+            blended_image = butility.crossfade_images(image1, image2, alpha)
             output_images.append(np.array(blended_image))
             # blended_image.save(os.path.join(output_folder, f"{dirs[i]}_{dirs[i+1]}_crossfade_{j:04}.png"))
 
     final_dir = os.path.join(root_folder, dirs[-1])
-    for c in range(allkeynums[-1], len(final_dir)):
-        
-        images_final = sorted(os.listdir(final_dir))
-        image1_path = os.path.join(final_dir, images_final[c])
+    final_dir_images = sorted(os.listdir(final_dir))
+    start_point = len(final_dir_images) // 2
+    print(f"going from dir {start_point} to end at {len(final_dir_images)}")
+
+    for c in range(start_point, len(final_dir_images)):
+        image1_path = os.path.join(final_dir, final_dir_images[c])
         image1 = Image.open(image1_path)
         output_images.append(np.array(image1))
-    
+        
 
-
+    print (f"outputting {len(output_images)} images")
     output_save_location = os.path.join(output_folder, "crossfade.mp4")
-    generated_vid = bmethod.pil_images_to_video(output_images, output_save_location, fps)
-    return generated_vid
+    generated_vid = extensions.TemporalKit.scripts.berry_utility.pil_images_to_video(output_images, output_save_location, fps)
+     
+    if return_generated_video_path == True:
+        return generated_vid
+    else: 
+        return output_images
 
 def getkeynums (folder_path):
     filenames = os.listdir(folder_path)
