@@ -167,13 +167,26 @@ def crossfade_folder_of_folders(output_folder, fps,return_generated_video_path=F
 
     final_dir = os.path.join(root_folder, dirs[-1])
     final_dir_images = sorted(os.listdir(final_dir))
-    start_point = len(final_dir_images) // 2
-    print(f"going from dir {start_point} to end at {len(final_dir_images)}")
 
-    for c in range(start_point, len(final_dir_images)):
-        image1_path = os.path.join(final_dir, final_dir_images[c])
-        image1 = Image.open(image1_path)
-        output_images.append(np.array(image1))
+    # Find the index of the image with the last keyframe number in its name
+    last_keyframe_number = allkeynums[-1]
+    last_keyframe_index = None
+    for index, image_name in enumerate(final_dir_images):
+        number_in_name = int(''.join(filter(str.isdigit, image_name)))
+        if number_in_name == last_keyframe_number:
+            last_keyframe_index = index
+            break
+
+    if last_keyframe_index is not None:
+        print(f"going from dir {last_keyframe_number} to end at {len(final_dir_images)}")
+
+        # Iterate from the last keyframe number to the end
+        for c in range(last_keyframe_index, len(final_dir_images)):
+            image1_path = os.path.join(final_dir, final_dir_images[c])
+            image1 = Image.open(image1_path)
+            output_images.append(np.array(image1))
+    else:
+        print("Last keyframe not found in the final directory")
         
 
     print (f"outputting {len(output_images)} images")
