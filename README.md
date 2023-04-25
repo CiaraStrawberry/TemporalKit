@@ -18,6 +18,19 @@ https://twitter.com/CiaraRowles1/status/1648462374125576192
 
 NOTE: EBSYNTH DOES NOT REGISTER THE KEYFRAMES IF YOU USE ABOVE 20, 
 
+Ebsynth split frames tutorial:
+
+https://www.youtube.com/watch?v=z3YNHiuvxyg&ab_channel=CiaraRowles
+
+
+
+Example results you can get:
+
+https://user-images.githubusercontent.com/13116982/234425054-9a1bbf30-93a8-4f5b-9e80-4376ab3c510a.mp4
+
+
+
+
 The values in the extension are as follows
 
 FPS: This is the fps the video is extracted and produced at.
