@@ -146,12 +146,21 @@ def split_square_texture(texture, num_frames,max_frames, _smol_resolution,ebsynt
     return frames
 
 def save_square_texture(texture, file_path):
+    # Check if the input has the correct data type and convert if necessary
+    if texture.dtype != np.uint8:
+        texture = (texture * 255).astype(np.uint8)
+    
+    # Check if the input has the intended shape (3 channels for an RGB image)
+    if texture.ndim != 3 or texture.shape[2] != 3:
+        raise ValueError("Invalid texture shape. Expected a 3-channel RGB image.")
+    
     # Convert the NumPy array to a PIL Image
     image = Image.fromarray(texture)
-    #image = Image.fromarray(cv2.cvtColor(texture, cv2.COLOR_BGR2RGB))
+    
     # Save the image to the specified file path
     print(f'saved to {file_path} at size {image.size}')
     image.save(file_path, format="PNG")
+
 
 def convert_video_to_bytes(input_file):
     # Read the uploaded video file
