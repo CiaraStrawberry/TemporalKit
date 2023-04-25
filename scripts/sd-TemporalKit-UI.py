@@ -325,7 +325,7 @@ def update_settings_from_file(folderpath):
     read_path = os.path.join(folderpath,"batch_settings.txt")
     border = None
     print (f"batch settings exists = {os.path.exists(read_path)}")
-    if os.path.exists(os.path.exists(read_path) == False):
+    if os.path.exists(read_path) == False:
         read_path = os.path.join(folderpath,"0/batch_settings.txt")
         video_path = os.path.join(folderpath,"main_video.mp4")
         transition_data_path = os.path.join(folderpath,"transition_data.txt")
