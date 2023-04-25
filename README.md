@@ -1,6 +1,6 @@
 # TemporalKit
 
-An easy solution for adding Temporal Stability to a Stable Diffusion Render via an automatic1111 extension
+An all in one solution for adding Temporal Stability to a Stable Diffusion Render via an automatic1111 extension
 
 *You must install FFMPEG to path before running this*
 
