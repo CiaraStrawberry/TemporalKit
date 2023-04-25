@@ -105,6 +105,7 @@ def split_frames_into_big_batches(frames, batch_size, border,ebsynth,returnframe
 
         end_idx = min(end_idx, num_frames)
         batches.append(frames[start_idx:end_idx])
+        print (f"batch {i} has {len(batches[i])} frames")
         frame_locations.append((start_idx,end_idx))
 
     if returnframe_locations == False:
@@ -178,7 +179,7 @@ def generate_square_from_video(video_path, fps, batch_size,resolution,size_size)
     
     return square_texture
 
-def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size,max_frames,output_folder,border,ebsynth_mode):
+def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size,max_frames,output_folder,border,ebsynth_mode,max_frames_to_save):
 
     if ebsynth_mode == False:
         if border >=  (batch_size * size_size * size_size) / 2:
@@ -236,7 +237,7 @@ def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size
         f.write(str(size_size) + "\n")
         f.write(str(batch_size) + "\n")
         f.write(str(video_path) + "\n")
-        f.write(str(max_frames) + "\n")
+        f.write(str(max_frames_to_save) + "\n")
         f.write(str(border) + "\n")
     #return list of urls
 
@@ -285,7 +286,7 @@ def process_video_batch (video_path_old, fps, per_side, batch_size, fillindenois
     per_batch_limmit = (((per_side * per_side) * batch_size)) + border
     video_data = convert_video_to_bytes(video_path)
     frames = utilityb.extract_frames_movpie(video_data, fps, max_frames)
-    print(f"full frames num = {len(frames)}")
+    print(f"splitting into batches with per_batch_limmit = {per_batch_limmit} and border {border}" )
     bigbatches = split_frames_into_big_batches(frames, per_batch_limmit,border,ebsynth=False)
     bigprocessedbatches = []
     for i , batch in enumerate(bigbatches):
@@ -296,6 +297,7 @@ def process_video_batch (video_path_old, fps, per_side, batch_size, fillindenois
                 Image.fromarray(image).save(os.path.join(output_folder, f"result/output{a + (len(new_batch) * i)}.png"))
     
     just_frame_groups = []
+    print (f"bigprocessedbatches len = {len(bigprocessedbatches)}")
     for i in range(len(bigprocessedbatches)):
         newgroup = []
         for b in range(len(bigprocessedbatches[i])):
@@ -604,13 +606,13 @@ def divideFrames(frame_groups, x, y):
             if end + y <= len(group):
                 overlap_group = group[end:end+y]
 
-                # Resize the images in new_group and overlap_group to ensure they have the same shape
-                #reference_shape = new_group[0].shape
-                #new_group_resized = [cv2.resize(img, (reference_shape[1], reference_shape[0])) for img in new_group]
-                #overlap_group_resized = [cv2.resize(img, (reference_shape[1], reference_shape[0])) for img in overlap_group]
 
                 # Concatenate the images from new_group and overlap_group
-                combined_group = np.concatenate((new_group, overlap_group), axis=0)
+                if  y > 0:
+                    combined_group = np.concatenate((new_group, overlap_group), axis=0)
+                else:
+                    combined_group = new_group
+                print (f"overlap group size {len(overlap_group)}")
                 transitions.append(len(result))
 
             else:
@@ -622,7 +624,7 @@ def divideFrames(frame_groups, x, y):
     return result,transitions
 
 
-def trim_images(images_list_of_lists, max_images,border_indices):
+def trim_images(images_list_of_lists, max_images, border_indices):
     """
     Trims the given list of lists of image arrays so that the total number of image arrays is below the specified maximum.
     Removes whole image arrays from the end of the list of lists if the max_images doesn't include them.
@@ -637,16 +639,17 @@ def trim_images(images_list_of_lists, max_images,border_indices):
     total_images = sum([len(img_list) for img_list in images_list_of_lists])
 
     while total_images > max_images:
-        print (f"total_images = {total_images}, max_images = {max_images}")
+        print(f"total_images = {total_images}, max_images = {max_images}")
         last_list_idx = len(images_list_of_lists) - 1
         last_img_idx = len(images_list_of_lists[last_list_idx]) - 1
-        
+
         if last_img_idx >= 0:
             total_images -= 1
-            images_list_of_lists[last_list_idx].pop()
+            images_list_of_lists[last_list_idx] = images_list_of_lists[last_list_idx][:-1]
 
         if len(images_list_of_lists[last_list_idx]) == 0:
             images_list_of_lists.pop()
-            border_indices.pop()
+            if last_list_idx in border_indices:
+                border_indices.pop()
 
-    return images_list_of_lists,border_indices
+    return images_list_of_lists, border_indices

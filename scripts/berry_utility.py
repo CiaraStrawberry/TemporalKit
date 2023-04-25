@@ -551,13 +551,13 @@ def crossfade_videos(video_paths,fps, overlap_indexes, num_overlap_frames, outpu
         output it to the output file location
     """
 
-
-    original_frames_arrays = []
-    for i in range(len(video_paths)):
-        data = convert_video_to_bytes(video_paths[i])
-        frames_list = extract_frames_movpie(data, fps)
-        original_frames_arrays.append(frames_list)
-        print (f"video {i} has {len(frames_list)} frames")
+    #not video paths any more frame arrays
+    original_frames_arrays = video_paths
+    #for i in range(len(video_paths)):
+    #    data = convert_video_to_bytes(video_paths[i])
+    ##    frames_list = extract_frames_movpie(data, fps)
+    #    original_frames_arrays.append(frames_list)
+    #    print (f"video {i} has {len(frames_list)} frames")
     new_frames_arrays = copy.deepcopy(original_frames_arrays)
     
     for index, frames_array in enumerate(original_frames_arrays):
@@ -576,7 +576,7 @@ def crossfade_videos(video_paths,fps, overlap_indexes, num_overlap_frames, outpu
                         last_of_current.pop()  # remove the last element from array2
                 
             crossfaded = []
-            for i in range(num_overlap_frames - 1):
+            for i in range(num_overlap_frames):
                 alpha = 1 - (i / num_overlap_frames) # set alpha value
                 if i > len(last_of_current) - 1 or i > len(first_of_next) - 1:
                     
@@ -586,6 +586,8 @@ def crossfade_videos(video_paths,fps, overlap_indexes, num_overlap_frames, outpu
                 new_frame = crossfade_frames(last_of_current[i], first_of_next[i], alpha)
                 #print (new_frame.shape)
                 crossfaded.append(new_frame)
+            print (f"crossfaded {len(crossfaded)} frames with num overlap = {num_overlap_frames}, the last of current array is of length {len(last_of_current)} and the first of next is of length {len(first_of_next)}")
+            #saving first of next and last of current
             new_frames_arrays[index][-num_overlap_frames:] = crossfaded
 
         if index > 0 and index - 1 in overlap_indexes:
@@ -597,7 +599,9 @@ def crossfade_videos(video_paths,fps, overlap_indexes, num_overlap_frames, outpu
     output_array = []
     for arr in new_frames_arrays:
         for frame in arr:
-            output_array.append(Image.fromarray(frame))
+            #frame =  cv2.resize(frame, (new_frames_arrays, new_height), interpolation=cv2.INTER_LINEAR)
+            #print (frame.shape)
+            output_array.append(Image.fromarray(frame).convert("RGB"))
     return pil_images_to_video(output_array, output_path, fps)
 
 
@@ -638,7 +642,8 @@ def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_inte
     frame_time = 1 / target_fps
     current_time = 0
 
-    while current_time < video_duration:
+
+    while current_time < video_duration and (max_frames is None or len(frames) < max_frames):
         frame1_time = current_time * frame_ratio
         frame2_time = min((current_time + frame_time) * frame_ratio, video_duration)
         frame1 = video_clip.get_frame(frame1_time)
@@ -652,7 +657,10 @@ def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_inte
 
         frames.append(frame)
         current_time += frame_time
-        
+
+    if max_frames is not None and len(frames) > max_frames:
+        frames = frames[:max_frames]
+
     print(f"Extracted {len(frames)} frames at {target_fps} fps over a clip with a length of {len(frames) / target_fps} seconds with the old duration of {video_duration} seconds")
     return frames
 
@@ -675,11 +683,17 @@ def split_video_into_numpy_arrays(video_path, target_fps=None, perform_interpola
     video_manager.start()
 
     scene_manager.detect_scenes(frame_source=video_manager)
-    scene_list = scene_manager.get_scene_list()
+    scene_list = scene_manager.get_scene_list(start_in_scene=True)
     
     if target_fps is not None:
         original_fps = video_manager.get(cv2.CAP_PROP_FPS)
 
+    if len(scene_list) == 0:
+        start_time = 0
+        end_time = video_manager.get(cv2.CAP_PROP_FRAME_COUNT) / video_manager.get(cv2.CAP_PROP_FPS)
+        scene_list.append((start_time, end_time))
+
+    print (f"Detected {len(scene_list)} scenes")
     numpy_arrays = save_scenes_as_numpy_arrays(scene_list, video_path, target_fps, original_fps if target_fps else None, perform_interpolation)
 
     print(f"Total scenes: {len(numpy_arrays)}")

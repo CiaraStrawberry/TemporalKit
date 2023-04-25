@@ -118,7 +118,7 @@ def recombine (video_path, fps, per_side, batch_size, fillindenoise, edgedenoise
 
 
 
-def crossfade_folder_of_folders(output_folder, fps):
+def crossfade_folder_of_folders(output_folder, fps,return_generated_video_path=False):
     """Crossfade between images in a folder of folders and save the results."""
     root_folder = output_folder
     all_dirs = [d for d in os.listdir(root_folder) if os.path.isdir(os.path.join(root_folder, d))]
@@ -152,7 +152,7 @@ def crossfade_folder_of_folders(output_folder, fps):
 
 
 
-        for j in range(keynum, len(images_current)):
+        for j in range(keynum, len(images_current) - 1):
             alpha = (j - keynum) / (len(images_current) - keynum)
             image1_path = os.path.join(current_dir, images_current[j])
             next_image_index = j - keynum if j - keynum < len(images_next) else len(images_next) - 1
@@ -166,20 +166,24 @@ def crossfade_folder_of_folders(output_folder, fps):
             # blended_image.save(os.path.join(output_folder, f"{dirs[i]}_{dirs[i+1]}_crossfade_{j:04}.png"))
 
     final_dir = os.path.join(root_folder, dirs[-1])
-    for c in range(allkeynums[-1], len(final_dir)):
-        
-        images_final = sorted(os.listdir(final_dir))
-        if c >= len(images_final):
-            break
-        image1_path = os.path.join(final_dir, images_final[c])
+    final_dir_images = sorted(os.listdir(final_dir))
+    start_point = len(final_dir_images) // 2
+    print(f"going from dir {start_point} to end at {len(final_dir_images)}")
+
+    for c in range(start_point, len(final_dir_images)):
+        image1_path = os.path.join(final_dir, final_dir_images[c])
         image1 = Image.open(image1_path)
         output_images.append(np.array(image1))
-    
+        
 
-
+    print (f"outputting {len(output_images)} images")
     output_save_location = os.path.join(output_folder, "crossfade.mp4")
     generated_vid = extensions.TemporalKit.scripts.berry_utility.pil_images_to_video(output_images, output_save_location, fps)
-    return generated_vid
+     
+    if return_generated_video_path == True:
+        return generated_vid
+    else: 
+        return output_images
 
 def getkeynums (folder_path):
     filenames = os.listdir(folder_path)
