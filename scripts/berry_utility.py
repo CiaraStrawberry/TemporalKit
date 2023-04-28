@@ -619,8 +619,15 @@ def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_inte
 
     def get_video_info(video_path):
         cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', video_path]
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        try:
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        except FileNotFoundError as e:
+            print(f"Error: {e}. Please ensure that ffmpeg is installed and available in your system's PATH.")
+            return None
+
         return json.loads(result.stdout)
+
 
     def interpolate_frames(frame1, frame2, ratio):
         flow = cv2.calcOpticalFlowFarneback(cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY), cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY), None, 0.5, 3, 15, 3, 5, 1.2, 0)
