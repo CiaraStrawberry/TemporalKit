@@ -615,7 +615,7 @@ def crossfade_images(image1, image2, alpha):
 
 
 def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_interpolation=True):
-    print("Interpolating extra frames")
+    print(f"Interpolating extra frames with max frames {max_frames}" )
 
     def get_video_info(video_path):
         cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', video_path]

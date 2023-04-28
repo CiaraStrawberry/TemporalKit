@@ -232,8 +232,8 @@ def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size
             keyframes = [batch[0] for batch in batches]  
         else: 
             keyframes = [batch[int(len(batch)/2)] for batch in batches]
-        for batch in batches:
-            print (f"framenum = {int(len(batch)/2)} out of batch length {len(batch)} and size {len(frames)}")
+        #for batch in batches:
+            #print (f"framenum = {int(len(batch)/2)} out of batch length {len(batch)} and size {len(frames)}")
         square_texture = create_square_texture(keyframes, resolution,side_length=size_size)
         save_square_texture(square_texture, os.path.join(input_folder_loc, f"input{i}.png"))
         square_textures.append(square_texture)

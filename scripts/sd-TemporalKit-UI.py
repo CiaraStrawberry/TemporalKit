@@ -80,16 +80,19 @@ def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_fram
         border_frames = border_frames * batch_size
 
         max_frames = (20 * batch_size) - border_frames
-
-        existing_frames = []
+        max_total_frames = int((max_keys / 20) * max_frames)
+        existing_frames = [] 
+        if max_keys < 0:
+            max_keys = 100000
+            max_total_frames = 1000000
+            # would use mathf.inf in c#, dunno what that is in python
         if split_based_on_cuts == True:
             existing_frames = sd_utility.split_video_into_numpy_arrays(video,fps,interpolate)
         else:
             data = General_SD.convert_video_to_bytes(video)
-            existing_frames = [sd_utility.extract_frames_movpie(data, fps,max_frames,interpolate)]
-        if max_keys < 0:
-            max_keys = 10000
-            # would use mathf.inf in c#, dunno what that is in python
+            existing_frames = [sd_utility.extract_frames_movpie(data, fps,max_frames=max_total_frames,perform_interpolation=interpolate)]
+    
+
         split_video_paths,transition_data = General_SD.split_videos_into_smaller_videos(max_keys,existing_frames,fps,max_frames,output_path,border_frames,split_based_on_cuts)
         for index,individual_video in enumerate(split_video_paths):
             
