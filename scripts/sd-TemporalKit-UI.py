@@ -62,9 +62,12 @@ def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_fram
         os.makedirs(output_folder_loc)
     
     max_keys = max_frames
+    if max_keys < 0:
+        max_keys = 100000
     max_frames = (max_frames * (batch_size))
     if max_frames < 1:
-        max_frames = -1
+        max_frames = 100000
+    # would use mathf.inf in c#, dunno what that is in python
     # potential bug later, low priority
     if ebsynth_mode == True:
         if split_video == False:
@@ -82,10 +85,7 @@ def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_fram
         max_frames = (20 * batch_size) - border_frames
         max_total_frames = int((max_keys / 20) * max_frames)
         existing_frames = [] 
-        if max_keys < 0:
-            max_keys = 100000
-            max_total_frames = 1000000
-            # would use mathf.inf in c#, dunno what that is in python
+           
         if split_based_on_cuts == True:
             existing_frames = sd_utility.split_video_into_numpy_arrays(video,fps,interpolate)
         else:
