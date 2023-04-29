@@ -615,7 +615,7 @@ def crossfade_images(image1, image2, alpha):
 
 
 def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_interpolation=True):
-    print(f"Interpolating extra frames with max frames {max_frames}" )
+    print(f"Interpolating extra frames with max frames {max_frames} and interpolating = {perform_interpolation}" )
 
     def get_video_info(video_path):
         cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', video_path]
@@ -650,26 +650,44 @@ def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_inte
     current_time = 0
 
 
-    while current_time < video_duration and (max_frames is None or len(frames) < max_frames):
-        frame1_time = current_time * frame_ratio
-        frame2_time = min((current_time + frame_time) * frame_ratio, video_duration)
-        frame1 = video_clip.get_frame(frame1_time)
-        frame2 = video_clip.get_frame(frame2_time)
+    if max_frames is None:
+        max_frames = int(video_duration * target_fps)
+    else:
+        max_frames = min(max_frames, int(video_duration * target_fps))
 
-        if not perform_interpolation or target_fps <= original_fps:
-            frame = frame1
-        else:
-            ratio = (frame1_time * original_fps) % 1
+    if not perform_interpolation or target_fps <= original_fps:
+        frame_repeat = int(target_fps / original_fps)
+        input_frame_time = 0
+        input_frame_step = 1 / original_fps
+
+        while len(frames) < max_frames and input_frame_time < video_duration:
+            frame = video_clip.get_frame(input_frame_time)
+            for _ in range(frame_repeat):
+                frames.append(frame)
+                if len(frames) >= max_frames:
+                    break
+            input_frame_time += input_frame_step
+    else:
+        while len(frames) < max_frames:
+            current_time = (len(frames) / target_fps) * video_duration
+            frame1_time = current_time * frame_ratio
+            frame2_time = min(current_time * frame_ratio + frame_ratio, video_duration)
+
+            if frame2_time >= video_duration:
+                break
+
+            frame1 = video_clip.get_frame(frame1_time)
+            frame2 = video_clip.get_frame(frame2_time)
+
+            ratio = (current_time * original_fps) % 1
             frame = interpolate_frames(frame1, frame2, ratio)
 
-        frames.append(frame)
-        current_time += frame_time
-
-    if max_frames is not None and len(frames) > max_frames:
-        frames = frames[:max_frames]
+            frames.append(frame)
 
     print(f"Extracted {len(frames)} frames at {target_fps} fps over a clip with a length of {len(frames) / target_fps} seconds with the old duration of {video_duration} seconds")
     return frames
+
+
 
 def convert_video_to_bytes(input_file):
     # Read the uploaded video file

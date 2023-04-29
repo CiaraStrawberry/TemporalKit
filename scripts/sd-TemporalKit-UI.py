@@ -53,7 +53,7 @@ def upload_file(files):
     return file_paths
 
 
-def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_frames,output_path,border_frames,ebsynth_mode,split_video,split_based_on_cuts,interpolate):
+def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_frames,output_path,border_frames,ebsynth_mode,split_video,split_based_on_cuts):
     input_folder_loc = os.path.join(output_path, "input")
     output_folder_loc = os.path.join(output_path, "output")
     if not os.path.exists(input_folder_loc):
@@ -87,10 +87,10 @@ def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_fram
         existing_frames = [] 
            
         if split_based_on_cuts == True:
-            existing_frames = sd_utility.split_video_into_numpy_arrays(video,fps,interpolate)
+            existing_frames = sd_utility.split_video_into_numpy_arrays(video,fps,False)
         else:
             data = General_SD.convert_video_to_bytes(video)
-            existing_frames = [sd_utility.extract_frames_movpie(data, fps,max_frames=max_total_frames,perform_interpolation=interpolate)]
+            existing_frames = [sd_utility.extract_frames_movpie(data, fps,max_frames=max_total_frames,perform_interpolation=False)]
     
 
         split_video_paths,transition_data = General_SD.split_videos_into_smaller_videos(max_keys,existing_frames,fps,max_frames,output_path,border_frames,split_based_on_cuts)
@@ -393,7 +393,7 @@ def create_video_Processing_Tab():
                                         with gr.Row():
                                             split_video = gr.Checkbox(label="Split Video", value=False)
                                             split_based_on_cuts = gr.Checkbox(label="Split based on cuts (as well)", value=False)
-                                            interpolate = gr.Checkbox(label="Interpolate(high memory)", value=False)
+                                            #interpolate = gr.Checkbox(label="Interpolate(high memory)", value=False)
 
 
             savesettings.click(
@@ -415,7 +415,7 @@ def create_video_Processing_Tab():
                     print("failed")
                     pass
     parameters_copypaste.add_paste_fields("TemporalKit", result_image,None)
-    runbutton.click(preprocess_video, [video,fps,batch_size,sides,resolution,batch_checkbox,max_keyframes,batch_folder,border_frames,ebsynth_mode,split_video,split_based_on_cuts,interpolate], result_image)
+    runbutton.click(preprocess_video, [video,fps,batch_size,sides,resolution,batch_checkbox,max_keyframes,batch_folder,border_frames,ebsynth_mode,split_video,split_based_on_cuts], result_image)
 
 
 def show_textbox(option):
