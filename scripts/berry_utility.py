@@ -614,7 +614,7 @@ def crossfade_images(image1, image2, alpha):
     return Image.blend(image1, image2, alpha)
 
 
-def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_interpolation=True):
+def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_interpolation=False):
     print(f"Interpolating extra frames with max frames {max_frames} and interpolating = {perform_interpolation}" )
 
     def get_video_info(video_path):
@@ -643,7 +643,7 @@ def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_inte
 
     video_clip = VideoFileClip(video_path)
     video_duration = video_clip.duration
-
+    print (f"video duration is {video_duration}")
     frames = []
     frame_ratio = original_fps / target_fps
     frame_time = 1 / target_fps
@@ -657,9 +657,12 @@ def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_inte
 
     if not perform_interpolation or target_fps <= original_fps:
         frame_repeat = int(target_fps / original_fps)
+        print (f"frame repeat is {frame_repeat}, target fps is {target_fps} and original fps is {original_fps}")
+        if frame_repeat == 0: 
+            frame_repeat = 1
         input_frame_time = 0
         input_frame_step = 1 / original_fps
-
+   
         while len(frames) < max_frames and input_frame_time < video_duration:
             frame = video_clip.get_frame(input_frame_time)
             for _ in range(frame_repeat):
