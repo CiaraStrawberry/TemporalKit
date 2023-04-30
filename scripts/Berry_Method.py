@@ -446,25 +446,19 @@ def process_video(frames, per_side, batch_size, fillindenoise, edgedenoise, _smo
             encoded_batch.append(utilityb.texture_to_base64(image))
         
         processed_batch,all_flow_after = sdprocess.batch_sd_run(encoded_batch, encoded_new_frame, frame_count, seed, False, fillindenoise, edgedenoise, _smol_resolution,True,encoded_new_frame,False)
- 
+        print (f"number {i} processed batch length {len(processed_batch)} and batch length {len(batch)} and num batches {len(batches)}")
         if last_processed is not None:
             encoded_batch.insert(0,utilityb.texture_to_base64(batches[i - 1][-1]))
             processed_batch_from_before,all_flow_after = sdprocess.batch_sd_run(encoded_batch, last_processed, frame_count, seed, True, fillindenoise, edgedenoise, _smol_resolution,True,last_processed,False)
             if not min(len (processed_batch_from_before),len(processed_batch)) > 1:
-                return output_pil_images
+                output_pil_images.append(cv2.cvtColor(utilityb.base64_to_texture(processed_batch[0]), cv2.COLOR_BGR2RGB))
+                continue
             blended_frames = blend_batches(processed_batch_from_before, processed_batch, resolution=_smol_resolution)
+            print (f"blended frames {len(blended_frames)}")
             for b, blended_frame in enumerate(blended_frames):
                 #savepath = os.path.join(output_folder, f"frame_{frame_count + b}.png")
                 #save_square_texture(blended_frame, savepath)
                 output_pil_images.append(blended_frame)
-                #save_square_texture(cv2.cvtColor(utilityb.base64_to_texture(processed_batch_before[b]), cv2.COLOR_BGR2RGB), savepath)
-
-
-
-                #save_square_texture(cv2.cvtColor(utilityb.base64_to_texture(last_processed[b]), cv2.COLOR_BGR2RGB), f"./debug/before_{frame_count + b}.png")
-                #save_square_texture(cv2.cvtColor(utilityb.base64_to_texture(processed_batch_before[b]), cv2.COLOR_BGR2RGB), f"./debug/after_{frame_count + b}.png")
-            #for c, flow in enumerate(all_flow_before):
-                #write_jpeg(flow, f"./debug/before_flow_{frame_count + c + 1}.png")
         else:
             for b, frame in enumerate(processed_batch):
                 #savepath = os.path.join(output_folder, f"frame_{frame_count + b}.png")
@@ -474,7 +468,7 @@ def process_video(frames, per_side, batch_size, fillindenoise, edgedenoise, _smo
 
         frame_count += len(batch)
         last_processed = processed_batch[-1]
-
+    print (f"output pil images {len(output_pil_images)}")
     return output_pil_images
 
     
@@ -524,7 +518,7 @@ def blend_batches(batch_before, current_batch,resolution, blend_start_ratio=0.9,
         os.makedirs(output_folder)
 
     if not num_frames > 1:
-        return
+        return [current_batch[0]]
     for i in range(num_frames):
         alpha = blend_start_ratio - (i / (num_frames - 1)) * (blend_start_ratio - blend_end_ratio)
         blended_frame = cv2.addWeighted(decoded_batch_before[i], alpha, decoded_current_batch[i], 1 - alpha, 0)
