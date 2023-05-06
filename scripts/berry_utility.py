@@ -639,8 +639,9 @@ def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_inte
 
     video_info = get_video_info(video_path)
     video_stream = next((stream for stream in video_info['streams'] if stream['codec_type'] == 'video'), None)
-    original_fps = float(video_stream['avg_frame_rate'].split('/')[0])
-
+    numerator, denominator = map(int, video_stream['avg_frame_rate'].split('/'))
+    original_fps = float(numerator) / float(denominator) if denominator != 0 else 0.0
+    
     video_clip = VideoFileClip(video_path)
     video_duration = video_clip.duration
     print (f"video duration is {video_duration}")
