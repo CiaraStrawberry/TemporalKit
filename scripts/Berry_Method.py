@@ -189,7 +189,7 @@ def generate_square_from_video(video_path, fps, batch_size,resolution,size_size)
     return square_texture
 
 def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size,max_frames,output_folder,border,ebsynth_mode,max_frames_to_save):
-
+    fps = int(fps)
     if ebsynth_mode == False:
         if border >=  (batch_size * size_size * size_size) / 2:
             raise Exception("too many border frames, reduce border or increase batch size")
