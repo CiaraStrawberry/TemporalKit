@@ -43,7 +43,7 @@ import base64
 import io
 import scripts.Ebsynth_Processing as ebsynth
 import scripts.berry_utility as sd_utility
-
+import scripts.TemporalNetRun as TemporalNetRun
 
 diffuseimg = None
 SamplerData = namedtuple('SamplerData', ['name', 'constructor', 'aliases', 'options'])
@@ -69,7 +69,7 @@ def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_fram
         max_frames = 100000
     # would use mathf.inf in c#, dunno what that is in python
     # potential bug later, low priority
-    if ebsynth_mode == True:
+    if ebsynth_mode == "Ebsynth":
         if split_video == False:
             border_frames = 0
         if batch_run == False:
@@ -92,11 +92,13 @@ def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_fram
             data = General_SD.convert_video_to_bytes(video)
             existing_frames = [sd_utility.extract_frames_movpie(data, fps,max_frames=max_total_frames,perform_interpolation=False)]
     
-
+        Ebsynth_bool = False
+        if ebsynth_mode == "Ebsynth" or ebsynth_mode == "TemporalNet+Ebsynth":
+            Ebsynth_bool = True
         split_video_paths,transition_data = General_SD.split_videos_into_smaller_videos(max_keys,existing_frames,fps,max_frames,output_path,border_frames,split_based_on_cuts)
         for index,individual_video in enumerate(split_video_paths):
             
-            generated_textures = General_SD.generate_squares_to_folder(individual_video,fps=fps,batch_size=batch_size, resolution=resolution,size_size=per_side,max_frames=None, output_folder=os.path.dirname(individual_video),border=0, ebsynth_mode=ebsynth_mode,max_frames_to_save=max_frames)
+            generated_textures = General_SD.generate_squares_to_folder(individual_video,fps=fps,batch_size=batch_size, resolution=resolution,size_size=per_side,max_frames=None, output_folder=os.path.dirname(individual_video),border=0, ebsynth_mode=Ebsynth_bool,max_frames_to_save=max_frames)
             input_location = os.path.join(os.path.dirname(os.path.dirname(individual_video)),"input")
             for tex_index,texture in enumerate(generated_textures):
                 individual_file_name = os.path.join(input_location,f"{index}and{tex_index}.png")
@@ -111,7 +113,7 @@ def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_fram
     
     new_video_loc = os.path.join(output_path, f"input_video.mp4")
     shutil.copyfile(video,new_video_loc)
-    if ebsynth_mode == True:
+    if ebsynth_mode == "Ebsynth":
         border = 0
         
         image = General_SD.generate_squares_to_folder(video,fps=fps,batch_size=batch_size, resolution=resolution,size_size=per_side,max_frames=max_frames, output_folder=output_path,border=border_frames, ebsynth_mode=True,max_frames_to_save=max_frames)
@@ -125,6 +127,8 @@ def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_fram
         processed = image[0]
     return processed
 
+def TemporalNetDiffuseRun (project_path,init_image,width,height,positive,negative,denoise):
+    TemporalNetRun.run_stable_diffusion(project_path,init_image,width,height,positive,negative,denoise)
 
 
 def apply_image_to_video(image,video,fps,per_side,output_resolution,batch_size):
@@ -376,7 +380,9 @@ def create_video_Processing_Tab():
                                 with gr.Row():
                                     batch_size = gr.Number(value=5, label="frames per keyframe", precision=1, interactive=True)
                                     fps = gr.Number(value=30, precision=1, label="fps", interactive=True)    
-                                    ebsynth_mode = gr.Checkbox(label="EBSynth Mode", value=False)
+                                    
+                                    #ebsynth_mode = gr.Checkbox(label="EBSynth Mode", value=False)
+                                    ebsynth_mode = gr.Radio(["Ebsynth","Original", "TemporalNet+Ebsynth"],label="Mode", value="Ebsynth")
                                 with gr.Row():
                                     savesettings = gr.Button("Save Settings") 
                                 with gr.Row():
@@ -418,16 +424,8 @@ def create_video_Processing_Tab():
     runbutton.click(preprocess_video, [video,fps,batch_size,sides,resolution,batch_checkbox,max_keyframes,batch_folder,border_frames,ebsynth_mode,split_video,split_based_on_cuts], result_image)
 
 
-def show_textbox(option):
-    if option == True:
-        return gr.inputs.Textbox(lines=2, placeholder="Enter your text here")
-    else:
-        return False
-
-def create_diffusing_tab ():
-    global diffuseimg 
+def create_diffuse_tab():
     with gr.Column(visible=True, elem_id="Processid") as second_panel:
-        dummy_component = gr.Label(visible=False)
         with gr.Row():
             with gr.Tabs(elem_id="mode_TemporalKit"):
                 with gr.Row():
@@ -468,6 +466,38 @@ def create_diffusing_tab ():
         inputs=[input_image, input_video,fps,per_side,output_resolution_single,batch_size_diffuse],
         outputs=outputfile
         )
+
+
+def show_textbox(option):
+    if option == True:
+        return gr.inputs.Textbox(lines=2, placeholder="Enter your text here")
+    else:
+        return False
+
+def create_temporalNet_tab ():
+    global diffuseimg 
+    with gr.Column(visible=True, elem_id="Processid") as second_panel:
+        dummy_component = gr.Label(visible=False)
+        with gr.Row():
+            with gr.Tabs(elem_id="mode_TemporalKit"):
+                with gr.Row():
+                    with gr.Tab(elem_id="input_diffuse", label="Generate"):
+                        with gr.Column():
+                            with gr.Row():
+                                target_folder = gr.Textbox(label="Target Folder",placeholder="This is ignored if neither batch run or ebsynth are checked")
+                            with gr.Row():
+                                input_image = gr.Image(label="Input_Image", elem_id="input_page2",type="filepath")
+                                positive_prompt = gr.Textbox(label="Positive Prompt",placeholder="")
+                                negative_prompt = gr.Textbox(label="Negative Prompt",placeholder="")
+                                denoise = gr.Number(label="Denoise",value=0.45,precision=1)
+                                width = gr.Number(label="height resolution (-1 for unchanged)",value=-1,precision=1)
+                                height = gr.Number(label="width resolution (-1 for unchanged)",value=-1,precision=1)
+                            with gr.Row():
+                                runButton = gr.Button("run", elem_id="run_button")
+
+  
+       
+        runButton.click( fn=TemporalNetDiffuseRun, inputs=[target_folder,input_image,width,height,positive_prompt,negative_prompt,denoise], outputs=[dummy_component])
 
 
 def create_batch_tab ():
@@ -565,9 +595,12 @@ def on_ui_tabs():
                 with gr.Tab(label="Pre-Processing"):
                     with gr.Blocks(analytics_enabled=False):    
                         create_video_Processing_Tab()
+                with gr.Tab(label="TemporalNet Diffuse"):
+                    with gr.Blocks(analytics_enabled=False):    
+                        create_temporalNet_tab()
                 with gr.Tab(label="Temporal-Warp",elem_id="processbutton"):
                     with gr.Blocks(analytics_enabled=False):          
-                        create_diffusing_tab()
+                        create_diffuse_tab()
                 with gr.Tab(label="Batch-Warp",elem_id="batch-button"):
                     with gr.Blocks(analytics_enabled=False):          
                         create_batch_tab()

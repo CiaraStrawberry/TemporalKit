@@ -248,6 +248,7 @@ def generate_squares_to_folder (video_path, fps, batch_size,resolution,size_size
         f.write(str(video_path) + "\n")
         f.write(str(max_frames_to_save) + "\n")
         f.write(str(border) + "\n")
+        f.write(str(ebsynth_mode) + "\n")
     #return list of urls
 
 
@@ -300,6 +301,7 @@ def process_video_batch (video_path_old, fps, per_side, batch_size, fillindenois
     bigprocessedbatches = []
     for i , batch in enumerate(bigbatches):
         if i < len(square_textures):
+            print (f"processing batch {i} out of {len(bigbatches)} with square texture {i} out of {len(square_textures)}")
             new_batch = process_video(batch, per_side, batch_size, fillindenoise, edgedenoise, _smol_resolution,square_textures[i])
             bigprocessedbatches.append(new_batch)
             for a, image in enumerate(new_batch):

@@ -153,7 +153,7 @@ def harden_mask(encoded_image,taper):
    # combined = overlay_base64_images(encoded_image,processed_image_base64)
     return processed_image_base64
 
-
+#what did i do this for wtf why
 def resize_base64_image(base64_str, new_width: int, new_height: int) -> str:
     # Decode the base64 string
     #img_data = base64.b64decode(base64_str)

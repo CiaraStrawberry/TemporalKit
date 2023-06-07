@@ -87,15 +87,16 @@ def square_Image_request (image_path,prompt,denoise_strength,resolution,seed):
             print(f"Error: Unable to parse JSON error data. {error_data}")
         return None
 
-
+# Send the request for midas map from the server based on a filepath
 def prepare_request(allpaths,index,last_stylized,resolution,seed,last_mask,last_last_mask,fillindenoise,edgedenoise,target,diffuse,forwards):
+    print ("running midas request")
+    midas = gethedfromsd(allpaths[index - 1],resolution)
+    warped_path,flow,unused_mask,whitepixels,flow_img = raft.apply_flow_based_on_images(allpaths[index - 1],allpaths[index],last_stylized,resolution,index,temp_folder,midas)
     
-    warped_path,flow,unused_mask,whitepixels,flow_img = raft.apply_flow_based_on_images(allpaths[index - 1],allpaths[index],last_stylized,resolution,index,temp_folder)
-
     #warped_path,flow,unused_mask,whitepixels,flow_img = raft.apply_flow_based_on_images(allpaths[index - 1],allpaths[index],allpaths[index],resolution,index,temp_folder)
-    if diffuse:
-        hed = gethedfromsd(warped_path,resolution)
-        hed = utilityb.mask_to_grayscale( utilityb.scale_mask_intensity(utilityb.base64_to_texture(hed),edgedenoise))
+    #if diffuse:
+    #    hed = gethedfromsd(warped_path,resolution)
+    #    hed = utilityb.mask_to_grayscale( utilityb.scale_mask_intensity(utilityb.base64_to_texture(hed),edgedenoise))
         #hardened_hed = utilityb.harden_mask(hed,True)
     # flow_adjusted_mask = utilityb.modify_intensity_based_on_flow(hardened_hed,flow)
     if last_mask is None:
@@ -104,29 +105,20 @@ def prepare_request(allpaths,index,last_stylized,resolution,seed,last_mask,last_
         last_last_mask = np.zeros((resolution,resolution))
     if diffuse:
         combined_mask = utilityb.combine_masks([unused_mask,utilityb.scale_mask_intensity(last_mask,0.6),utilityb.scale_mask_intensity(last_last_mask,0.3),hed])
-    #combine_mask_no_hed = utilityb.combine_masks([unused_mask,utilityb.scale_mask_intensity(last_mask,0.6),utilityb.scale_mask_intensity(last_last_mask,0.3)])
-    #if whitepixels > 0:
-        #replaced = utilityb.replace_masked_area(flow,index,warped_path,unused_mask,warped_path)
+
     if target is not None and index > 1:
         replaced = utilityb.replaced_mask_from_other_direction_debug(index,Image.open(warped_path).convert("RGBA"),unused_mask,flow,Image.fromarray(cv2.cvtColor(utilityb.base64_to_texture( target), cv2.COLOR_BGR2RGB)).convert("RGBA"),forwards)
     else:
         replaced = utilityb.replaced_mask_from_other_direction_debug(index,Image.open(warped_path).convert("RGBA"),unused_mask,flow,None)
-    #else:
-    #    replaced = warped_path
-    #replaced = replace_masked_area(flow,index,last_stylized,hed,allpaths[index])
-    
     
     # Save the mask as a PNG file in the temporary folder
     file_path = os.path.join("debug2", f'mask{index}.png')
     cv2.imwrite(file_path, unused_mask)
 
-    
-
     if diffuse:
         return send_request_in_chain(last_stylized,allpaths[index],replaced,utilityb.texture_to_base64(combined_mask),index,seed,fillindenoise,resolution),unused_mask,flow_img
     else:
         return replaced, unused_mask,flow_img
-   # return send_request(last_stylized,y_folder,allpaths[index],replaced,hed,index)
 
 
 # Send the request for hed map from the server based on a filepath
@@ -134,11 +126,11 @@ def gethedfromsd(image_path,resolution):
     print(resolution)
     #with open(image_path, "rb") as f:
     #    image = base64.b64encode(f.read()).decode("utf-8")
-    image_smol = utilityb.resize_base64_image(image_path,resolution,resolution)
+    #image_smol = utilityb.resize_base64_image(image_path,resolution,resolution)
     url = "http://127.0.0.1:7860/controlnet/detect"
     data2 = {
-        "controlnet_module": "hed",
-        "controlnet_input_images": [image_smol],
+        "controlnet_module": "depth_leres",
+        "controlnet_input_images": [image_path],
         "controlnet_processor_res": resolution,
     }
     

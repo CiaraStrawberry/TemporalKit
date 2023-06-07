@@ -102,7 +102,7 @@ def infer(frameA, frameB):
  
 
 
-def apply_flow_based_on_images (image1_path, image2_path, provided_image_path,max_dimension, index,output_folder):
+def apply_flow_based_on_images (image1_path, image2_path, provided_image_path,max_dimension, index,output_folder,midas):
     w,h = get_target_size(utilityb.base64_to_texture(image1_path), max_dimension)
     w =  int(w / 8) * 8
     h =  int(h / 8) * 8
@@ -110,9 +110,7 @@ def apply_flow_based_on_images (image1_path, image2_path, provided_image_path,ma
     h, w = image1.shape[:2]
     image2 =  cv2.resize(utilityb.base64_to_texture(image2_path), (w,h), interpolation=cv2.INTER_LINEAR)
 
-  #  image1 =  utilityb.base64_to_texture(image1_path),max_dimension
- #   image2 =  utilityb.base64_to_texture(image2_path),max_dimension
-#    provided_image = read_image(provided_image_path)
+
     provided_image = utilityb.base64_to_texture(provided_image_path)
     provided_image = cv2.resize(provided_image, (w,h), interpolation=cv2.INTER_LINEAR)
     
@@ -120,19 +118,10 @@ def apply_flow_based_on_images (image1_path, image2_path, provided_image_path,ma
 
     img1_batch,img2_batch = infer(image1,image2)
     list_of_flows = model(img1_batch.to(device), img2_batch.to(device))
-    predicted_flows = list_of_flows[-1]
     predicted_flow = list_of_flows[-1][0]
     flow_img = flow_to_image(predicted_flow).to("cpu")
-    #flo_file = write_flo(predicted_flow, "flofile.flo")
-    
-    #write_jpeg(flow_img, f"./flow/predicted_flow{index}.jpg")
-    #write_jpeg(flow_img, os.path.join("temp", f'flow_{index + 1}.flo'))
 
-    #print(flow.shape)
-    #warped_image = apply_flow_to_image_try3(provided_image,predicted_flow)
     warped_image,unused_mask,white_pixels = apply_flow_to_image_with_unused_mask(provided_image,predicted_flow)
-
-
 
 
     warped_image_path = os.path.join(output_folder, f'warped_provided_image_{index + 1}.png')
@@ -228,7 +217,7 @@ def apply_flow_to_image_try3(image,flow):
     return warped_image
 
 
-def apply_flow_to_image_with_unused_mask(image, flow):
+def apply_flow_to_image_with_unused_mask(image, flow,depth_map):
     """
     Apply an optical flow tensor to a NumPy image by moving the pixels based on the flow and create a mask where the remap meant there was nothing there.
     
@@ -248,16 +237,11 @@ def apply_flow_to_image_with_unused_mask(image, flow):
         flow = flow.detach().cpu().numpy()
     flow = flow.transpose(1, 2, 0)
     new_coords = np.subtract(coords, flow)
-    avg = utilityb.avg_edge_pixels(image)
     warped_image = cv2.remap(image, new_coords, None, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
 
     # Create a mask where the remap meant there was nothing there
     mask = utilityb.create_hole_mask(flow)
     white_pixels = np.sum(mask > 0)
-    #print(f'white pixels {white_pixels}')
-
-    #remove later
-    #warped_image = warp_image2(image,flow)
 
     return warped_image, mask,white_pixels
 
@@ -272,3 +256,41 @@ def warp_image2(image, flow):
 
     warped_image = cv2.remap(image, flow_map, None, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT, borderValue=(0, 0, 0)    )
     return warped_image
+
+def remap_with_depth(image, flow, depth_map):
+    """
+    Remap an image according to the optical flow and depth map.
+
+    Args:
+        image (np.ndarray): Input image with shape (height, width, channels).
+        flow (np.ndarray): Optical flow tensor with shape (height, width, 2).
+        depth_map (np.ndarray): Depth map with shape (height, width).
+
+    Returns:
+        np.ndarray: Remapped image with the same shape as the input image.
+    """
+    height, width, _ = image.shape
+    x_coords, y_coords = np.meshgrid(np.arange(width), np.arange(height))
+    coords = np.stack([x_coords, y_coords], axis=-1).astype(np.float32)
+    
+    if isinstance(flow, torch.Tensor):
+        flow = flow.detach().cpu().numpy()
+    flow = flow.transpose(1, 2, 0)
+
+    new_coords = np.subtract(coords, flow)
+    new_coords = new_coords.astype(np.int)
+
+    new_coords[..., 0] = np.clip(new_coords[..., 0], 0, width - 1)
+    new_coords[..., 1] = np.clip(new_coords[..., 1], 0, height - 1)
+
+    remapped_image = np.zeros_like(image)
+    depth_buffer = np.zeros_like(depth_map)
+
+    for y in range(height):
+        for x in range(width):
+            new_x, new_y = new_coords[y, x]
+            if depth_map[y, x] > depth_buffer[new_y, new_x]:
+                remapped_image[new_y, new_x] = image[y, x]
+                depth_buffer[new_y, new_x] = depth_map[y, x]
+                
+    return remapped_image
