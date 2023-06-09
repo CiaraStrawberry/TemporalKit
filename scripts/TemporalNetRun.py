@@ -67,7 +67,7 @@ def get_image_paths(folder):
 
     return sorted(files, key=extract_number)
 
-def run_stable_diffusion(project_folder,init_image,width,height,positive_prompt,negative_prompt,denoise):
+def run_stable_diffusion(project_folder,init_image,width,height,positive_prompt,negative_prompt,denoise,seed):
     output_images = []
     output_paths = []
 
@@ -92,7 +92,7 @@ def run_stable_diffusion(project_folder,init_image,width,height,positive_prompt,
         optical_flow = infer(i,temp_folder,y_paths[i - 1], y_paths[i],width,height)
         
         # Modify your send_request to use the last_image_path
-        result = send_request(init_image,last_image_path, optical_flow, y_paths[i],width,height,positive_prompt,negative_prompt,denoise)
+        result = send_request(init_image,last_image_path, optical_flow, y_paths[i],width,height,positive_prompt,negative_prompt,denoise,seed)
         data = json.loads(result)
         encoded_image = data["images"][0]
         output_image_path = os.path.join(output_folder, f"output_image_{i}.png")
@@ -103,7 +103,7 @@ def run_stable_diffusion(project_folder,init_image,width,height,positive_prompt,
 
 
 
-def send_request(init_image_path,last_image_path, optical_flow_path,current_image_path,width,height,positive_prompt,negative_prompt,denoise):
+def send_request(init_image_path,last_image_path, optical_flow_path,current_image_path,width,height,positive_prompt,negative_prompt,denoise,seed):
     url = "http://localhost:7860/sdapi/v1/img2img"
     
     with open(last_image_path, "rb") as b:
@@ -125,11 +125,15 @@ def send_request(init_image_path,last_image_path, optical_flow_path,current_imag
     with open(init_image_path, "rb") as c:
         init_image = base64.b64encode(c.read()).decode("utf-8")
 
+    
+    # print("shapes = ", last_image.shape, flow_image.shape)
+
     # Concatenating the three images to make a 6-channel image
     six_channel_image = np.dstack((last_image, flow_image))
 
     # Serializing the 6-channel image
     serialized_image = pickle.dumps(six_channel_image)
+
 
     # Encoding the serialized image
     encoded_image = base64.b64encode(serialized_image).decode('utf-8')
@@ -149,31 +153,31 @@ def send_request(init_image_path,last_image_path, optical_flow_path,current_imag
                 "args": [
                     {
                         "input_image": current_image,
-                        "module": "hed",
-                        "model": "control_hed-fp16 [13fee50b]",
-                        "weight": 0.7,
+                        "module": "lineart_anime",
+                        "model": "control_v11p_sd15s2_lineart_anime [3825e83e]",
+                        "weight": 0.8,
                         "guidance": 1,
                    },
                     {
                         "input_image": encoded_image,
                         "model": "temporalnetversion2 [b146ac48]",
                         "module": "none",
-                        "weight": 0.6,
+                        "weight": 0.5,
                         "guidance": 1,
-                    },
-                    {
-                        "input_image": current_image,
-                        "model": "control_v11p_sd15_openpose [cab727d4]",
-                        "module": "openpose_full",
-                        "weight": 0.7,
-                        "guidance":1,
                     }
+                    #{
+                    #    "input_image": current_image,
+                    #    "model": "control_v11p_sd15_openpose [cab727d4]",
+                    #    "module": "openpose_full",
+                    #    "weight": 0.7,
+                    #    "guidance":1,
+                    #}
                     
                   
                 ]
             }
         },
-        "seed": 4123457655,
+        "seed": seed,
         "subseed": -1,
         "subseed_strength": -1,
         "sampler_index": "Euler a",
@@ -181,8 +185,8 @@ def send_request(init_image_path,last_image_path, optical_flow_path,current_imag
         "n_iter": 1,
         "steps": 20,
         "cfg_scale": 6,
-        "width": 512,
-        "height": 512,
+        "width": width,
+        "height": height,
         "restore_faces": True,
         "include_init_images": True,
         "override_settings": {},
@@ -229,8 +233,8 @@ def infer(i,output_folder,frameA, frameB,width,height):
 
 
     def preprocess(img1_batch, img2_batch):
-        img1_batch = F.resize(img1_batch, size=[width, height])
-        img2_batch = F.resize(img2_batch, size=[width, height])
+        img1_batch = F.resize(img1_batch, size=[height, width])
+        img2_batch = F.resize(img2_batch, size=[height, width])
         return transforms(img1_batch, img2_batch)
 
 

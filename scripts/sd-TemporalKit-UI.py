@@ -60,7 +60,7 @@ def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_fram
         os.makedirs(input_folder_loc)
     if not os.path.exists(output_folder_loc):
         os.makedirs(output_folder_loc)
-    
+    print("running in ", ebsynth_mode, " mode")
     max_keys = max_frames
     if max_keys < 0:
         max_keys = 100000
@@ -127,8 +127,8 @@ def preprocess_video(video,fps,batch_size,per_side,resolution,batch_run,max_fram
         processed = image[0]
     return processed
 
-def TemporalNetDiffuseRun (project_path,init_image,width,height,positive,negative,denoise):
-    TemporalNetRun.run_stable_diffusion(project_path,init_image,width,height,positive,negative,denoise)
+def TemporalNetDiffuseRun (project_path,init_image,width,height,positive,negative,denoise,seed):
+    TemporalNetRun.run_stable_diffusion(project_path,init_image,width,height,positive,negative,denoise,seed)
 
 
 def apply_image_to_video(image,video,fps,per_side,output_resolution,batch_size):
@@ -492,12 +492,13 @@ def create_temporalNet_tab ():
                                 denoise = gr.Number(label="Denoise",value=0.45,precision=1)
                                 width = gr.Number(label="height resolution (-1 for unchanged)",value=-1,precision=1)
                                 height = gr.Number(label="width resolution (-1 for unchanged)",value=-1,precision=1)
+                                seed = gr.Number(label="seed",value=-1,precision=1)
                             with gr.Row():
                                 runButton = gr.Button("run", elem_id="run_button")
 
   
        
-        runButton.click( fn=TemporalNetDiffuseRun, inputs=[target_folder,input_image,width,height,positive_prompt,negative_prompt,denoise], outputs=[dummy_component])
+        runButton.click( fn=TemporalNetDiffuseRun, inputs=[target_folder,input_image,width,height,positive_prompt,negative_prompt,denoise,seed], outputs=[dummy_component])
 
 
 def create_batch_tab ():

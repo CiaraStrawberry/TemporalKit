@@ -614,8 +614,8 @@ def crossfade_images(image1, image2, alpha):
     return Image.blend(image1, image2, alpha)
 
 
-def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_interpolation=False):
-    print(f"Interpolating extra frames with max frames {max_frames} and interpolating = {perform_interpolation}" )
+def extract_frames_movpie(input_video, target_fps, max_frames=None,perform_interpolation=False):
+    print(f"Adjusting frame rate with max frames {max_frames}" )
 
     def get_video_info(video_path):
         cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', video_path]
@@ -627,11 +627,6 @@ def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_inte
             return None
 
         return json.loads(result.stdout)
-
-
-    def interpolate_frames(frame1, frame2, ratio):
-        flow = cv2.calcOpticalFlowFarneback(cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY), cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY), None, 0.5, 3, 15, 3, 5, 1.2, 0)
-        return cv2.addWeighted(frame1, 1 - ratio, frame2, ratio, 0) + ratio * cv2.remap(frame1, flow * (1 - ratio), None, cv2.INTER_LINEAR)
 
     with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as f:
         f.write(input_video)
@@ -646,47 +641,32 @@ def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_inte
     video_duration = video_clip.duration
     print (f"video duration is {video_duration}")
     frames = []
-    frame_ratio = original_fps / target_fps
-    frame_time = 1 / target_fps
-    current_time = 0
-
 
     if max_frames is None:
         max_frames = int(video_duration * target_fps)
     else:
         max_frames = min(max_frames, int(video_duration * target_fps))
 
-    if not perform_interpolation or target_fps <= original_fps:
-        frame_repeat = int(target_fps / original_fps)
-        print (f"frame repeat is {frame_repeat}, target fps is {target_fps} and original fps is {original_fps}")
-        if frame_repeat == 0: 
-            frame_repeat = 1
-        input_frame_time = 0
-        input_frame_step = 1 / original_fps
-   
-        while len(frames) < max_frames and input_frame_time < video_duration:
-            frame = video_clip.get_frame(input_frame_time)
-            for _ in range(frame_repeat):
+    if target_fps > original_fps:
+        # For target_fps > original_fps, duplicate frames
+        duplicate_count = int(target_fps / original_fps)
+        print(f"Duplicating frames {duplicate_count} times")
+        for t in np.arange(0, video_duration, 1/original_fps):
+            frame = video_clip.get_frame(t)
+            for _ in range(duplicate_count):
                 frames.append(frame)
                 if len(frames) >= max_frames:
                     break
-            input_frame_time += input_frame_step
     else:
-        while len(frames) < max_frames:
-            current_time = (len(frames) / target_fps) * video_duration
-            frame1_time = current_time * frame_ratio
-            frame2_time = min(current_time * frame_ratio + frame_ratio, video_duration)
-
-            if frame2_time >= video_duration:
-                break
-
-            frame1 = video_clip.get_frame(frame1_time)
-            frame2 = video_clip.get_frame(frame2_time)
-
-            ratio = (current_time * original_fps) % 1
-            frame = interpolate_frames(frame1, frame2, ratio)
-
-            frames.append(frame)
+        # For target_fps <= original_fps, skip frames
+        skip_every = int(original_fps / target_fps)
+        print(f"Skipping every {skip_every} frames")
+        for t in np.arange(0, video_duration, 1/original_fps):
+            if int(t*original_fps) % skip_every == 0:
+                frame = video_clip.get_frame(t)
+                frames.append(frame)
+                if len(frames) >= max_frames:
+                    break
 
     print(f"Extracted {len(frames)} frames at {target_fps} fps over a clip with a length of {len(frames) / target_fps} seconds with the old duration of {video_duration} seconds")
     return frames
