@@ -20,7 +20,7 @@ import stat
 import gradio as gr
 import modules.extras
 from modules.ui_components import FormRow, FormGroup, ToolButton, FormHTML
-from modules.ui import create_toprow, create_sampler_and_steps_selection
+from modules.ui import Toprow, create_sampler_and_steps_selection
 import json
 from modules.sd_samplers import samplers, samplers_for_img2img
 import re
@@ -403,7 +403,7 @@ def create_video_Processing_Tab():
             with gr.Tabs(elemn_id="TemporalKit_gallery_container"):
                 with gr.TabItem(elem_id="output_TemporalKit", label="Output"):
                     with gr.Row():
-                        result_image = gr.outputs.Image(type='pil')
+                        result_image = gr.components.Image(type='pil')
                     with gr.Row():
                         runbutton = gr.Button("Run") 
                     with gr.Row():
