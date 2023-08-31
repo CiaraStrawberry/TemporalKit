@@ -240,7 +240,7 @@ def read_images_folder(folder_path):
 
 
 def numpy_array_to_data_uri(img_array):
-# convert the array to an image using PIL
+    # convert the array to an image using PIL
     img = Image.fromarray(img_array)
 
     # create a BytesIO object to hold the image data
