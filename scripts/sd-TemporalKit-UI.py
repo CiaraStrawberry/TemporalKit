@@ -403,7 +403,7 @@ def create_video_Processing_Tab():
             with gr.Tabs(elemn_id="TemporalKit_gallery_container"):
                 with gr.TabItem(elem_id="output_TemporalKit", label="Output"):
                     with gr.Row():
-                        result_image = gr.outputs.Image(type='pil')
+                        result_image = gr.components.Image(type='pil')
                     with gr.Row():
                         runbutton = gr.Button("Run") 
                     with gr.Row():
