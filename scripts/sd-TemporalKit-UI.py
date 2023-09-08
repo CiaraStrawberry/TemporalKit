@@ -20,7 +20,7 @@ import stat
 import gradio as gr
 import modules.extras
 from modules.ui_components import FormRow, FormGroup, ToolButton, FormHTML
-from modules.ui import create_toprow, create_sampler_and_steps_selection
+from modules.ui import  create_sampler_and_steps_selection
 import json
 from modules.sd_samplers import samplers, samplers_for_img2img
 import re
