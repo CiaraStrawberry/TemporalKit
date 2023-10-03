@@ -1,7 +1,6 @@
 import launch
 
-#todo: check if ffmpeg-python is used anywhere, could have sworn i removed it but not 100% enough to change now.
-if not launch.is_installed("ffmpeg-python"):
+if not launch.is_installed("ffmpeg"):
     launch.run_pip("install ffmpeg-python", "Install \"ffmpeg-python\" requirements for TemporalKit extension")
 
 if not launch.is_installed("moviepy"):
