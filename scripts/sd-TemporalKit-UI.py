@@ -217,7 +217,10 @@ def atoi(text):
     return int(text) if text.isdigit() else text
 
 def natural_keys(text):
-    return [atoi(c) for c in re.split(r'(\d+)', text)]
+    split = re.split(r'(\d+)', text)
+    for i in range(len(split), 0, -1):
+        if split[i-1].isdigit():
+            return int(split[i-1])
 
 def read_images_folder(folder_path):
     images = []
