@@ -8,12 +8,15 @@ import re
 import shutil
 from collections import namedtuple
 
+import cv2
 import gradio as gr
 import numpy as np
+import scenedetect
 import scripts.Berry_Method as General_SD
 import scripts.Ebsynth_Processing as ebsynth
 import scripts.berry_utility as sd_utility
 from PIL import Image
+from tqdm.auto import tqdm
 
 import modules.generation_parameters_copypaste as parameters_copypaste
 from modules import shared, script_callbacks
@@ -133,15 +136,36 @@ def apply_image_to_vide_batch(input_folder, video, fps, per_side, output_resolut
                                           border=border_frames)
 
 
-def post_process_ebsynth(input_folder, video, fps, per_side, output_resolution, batch_size, max_frames, border_frames):
+def post_process_ebsynth(input_folder, video, fps, per_side, output_resolution, batch_size, max_frames, border_frames,
+                         progress=gr.Progress()):
+    """
+    Post processes the ebsynth output into a video
+
+    :param input_folder: The folder containing the ebsynth output
+    :param video: The video that was used to generate the ebsynth output
+    :param fps: The fps of the video
+    :param per_side: The number of squares per side
+    :param output_resolution: The resolution of the output video
+    :param batch_size: The number of frames per keyframe
+    :param max_frames: The maximum number of frames to process
+    :param border_frames: The number of border frames
+    :param progress: The progress bar to update
+
+    :return: The path to the generated video
+    """
+
     input_images_folder = os.path.join(input_folder, "output")
-    images = read_images_folder(input_images_folder)
-    print(len(images))
-    split_mode = os.path.join(input_folder, "keys")
+    split_mode = os.path.join(input_folder, "batch_settings.txt")
+
+    # If the keys folder exists, use the sort_into_folders function
     if os.path.exists(split_mode):
-        return ebsynth.sort_into_folders(video_path=video, fps=fps, per_side=per_side, batch_size=batch_size,
-                                         _smol_resolution=output_resolution, square_textures=images,
-                                         max_frames=max_frames, output_folder=input_folder, border=border_frames)
+        images = read_images_folder(input_images_folder)
+        ebsynth.sort_into_folders(video_path=video, fps=fps, per_side=per_side, batch_size=batch_size,
+                                  _smol_resolution=output_resolution, square_textures=images,
+                                  max_frames=max_frames, output_folder=input_folder, border=border_frames,
+                                  progress=progress)
+        gr.Info("Finished processing")
+        return [os.path.join(input_folder, "keys", filename) for filename in os.listdir(os.path.join(input_folder, "keys"))]
     else:
         img_folder = os.path.join(input_folder, "output")
         # define a regular expression pattern to match directory names with one or more digits
@@ -153,28 +177,49 @@ def post_process_ebsynth(input_folder, video, fps, per_side, output_resolution, 
         # use a list comprehension to filter the directories based on the pattern
         numeric_dirs = sorted([d for d in all_dirs if re.match(pattern, d)], key=lambda x: int(x))
         max_frames = max_frames + border_frames
-        for d in numeric_dirs:
-            # create a list to store the filenames of the images that match the directory name
-            img_names = []
-            folder_video = os.path.join(input_folder, d, "input_video.mp4")
-            # loop through each image file in the image folder
-            for img_file in os.listdir(img_folder):
-                # check if the image filename starts with the directory name followed by the word "and" and a sequence of one or more digits, then ends with '.png'
-                if re.match(f"^{d}and\d+.*\.png$", img_file):
-                    img_names.append(img_file)
-            print(f"post processing = {os.path.dirname(folder_video)}")
-            square_textures = []
-            # loop through each image file name
-            for img_name in sorted(img_names, key=lambda x: int(re.search(r'and(\d+)', x).group(1))):
-                img = Image.open(os.path.join(input_images_folder, img_name))
-                # Convert image to NumPy array and append to images list
-                print(f"saving {os.path.join(input_images_folder, img_name)}")
-                square_textures.append(np.array(img))
 
-            ebsynth.sort_into_folders(video_path=folder_video, fps=fps, per_side=per_side, batch_size=batch_size,
-                                      _smol_resolution=output_resolution, square_textures=square_textures,
-                                      max_frames=max_frames, output_folder=os.path.dirname(folder_video),
-                                      border=border_frames)
+        with tqdm(position=2, desc="Working dir", total=len(numeric_dirs) - 1) as pbar:
+            for i, d in enumerate(numeric_dirs):
+                # create a list to store the filenames of the images that match the directory name
+                img_names = []
+                folder_video = os.path.join(input_folder, d, "input_video.mp4")
+
+                # batch settings in sub folder
+                read_path = os.path.join(input_folder, d, "batch_settings.txt")
+                with open(read_path, "r") as f:
+                    fps = int(f.readline().strip())
+                    per_side = int(f.readline().strip())
+                    batch_size = int(f.readline().strip())
+                    f.readline().strip()
+                    max_frames = int(f.readline().strip())
+                    border_frames = int(f.readline().strip())
+
+                # loop through each image file in the image folder
+                for img_file in os.listdir(img_folder):
+                    # check if the image filename starts with the directory name followed by the word "and" and a sequence of one or more digits, then ends with '.png'
+                    if re.match(f"^.*{d}and\d+.*\.png$", img_file):
+                        img_names.append(img_file)
+                tqdm.write(f"Post processing = {os.path.dirname(folder_video)}")
+                square_textures = []
+
+                # loop through each image file name
+                for img_name in sorted(img_names, key=lambda x: int(re.search(r'and(\d+)', x).group(1))):
+                    img = Image.open(os.path.join(input_images_folder, img_name))
+                    # Convert image to NumPy array and append to images list
+                    tqdm.write(f"Read output keyframe {os.path.join(input_images_folder, img_name)}")
+                    square_textures.append(np.array(img))
+
+                ebsynth.sort_into_folders(video_path=folder_video, fps=fps, per_side=per_side, batch_size=batch_size,
+                                          _smol_resolution=output_resolution, square_textures=square_textures,
+                                          max_frames=max_frames, output_folder=os.path.dirname(folder_video),
+                                          border=border_frames, progress=progress, index_dir=i,
+                                          total_dir=len(numeric_dirs))
+
+                # update the progress bar
+                pbar.update(1)
+
+        gr.Info("Finished processing")
+        return [os.path.join(input_folder, '0', "keys", filename) for filename in os.listdir(os.path.join(input_folder, '0', "keys"))]
 
 
 def recombine_ebsynth(input_folder, fps, border_frames, batch):
@@ -310,6 +355,22 @@ def get_most_recent_file(provided_directory):
     return most_recent_file
 
 
+def read_video_setting(video_path):
+    """
+    Reads the fps and keyframes from the provided video
+
+    :param video_path: The path to the video
+    :return: The fps and keyframes
+    """
+    if video_path == "":
+        return 24, 4
+
+    video = scenedetect.VideoManager(video_path)
+    fps = video.get(cv2.CAP_PROP_FPS)
+    keyframes = round(fps / 6)
+    return fps, keyframes
+
+
 def update_image():
     global diffuseimg
     extension_path = os.path.abspath(__file__)
@@ -335,26 +396,51 @@ def update_settings():
     return fps, sides, batch_size, video_path
 
 
-def update_settings_from_file(folderpath):
-    read_path = os.path.join(folderpath, "batch_settings.txt")
-    border = None
-    print(f"batch settings exists = {os.path.exists(read_path)}")
-    if os.path.exists(read_path) == False:
-        read_path = os.path.join(folderpath, "0/batch_settings.txt")
-        video_path = os.path.join(folderpath, "main_video.mp4")
-        transition_data_path = os.path.join(folderpath, "transition_data.txt")
-        if os.path.exists(transition_data_path):
-            with open(transition_data_path, "r") as b:
-                merge = str(b.readline().strip())
-                border = int(b.readline().strip())
-    print(f"reading path at {read_path}")
-    with open(read_path, "r") as f:
-        fps = int(f.readline().strip())
-        sides = int(f.readline().strip())
-        batch_size = int(f.readline().strip())
-        video_path = f.readline().strip()
-        max_frames = int(f.readline().strip())
-        if border == None:
+def update_settings_from_file(folder_path):
+    """
+    Reads the settings from the batch_settings.txt or file in the provided folder path
+
+    :param folder_path: The path to the folder containing the batch_settings.txt file
+    :return: The fps, sides, batch_size, video_path, max_frames, border
+    """
+    read_path = os.path.join(folder_path, "batch_settings.txt")
+    transition_data_path = os.path.join(folder_path, "transition_data.txt")
+
+    # If the batch_settings.txt file doesn't exist, check if the transition_data.txt file exists
+    if not (os.path.exists(read_path) or os.path.exists(transition_data_path)):
+        gr.Warning('No batch settings found, Please make sure the path are correct.')
+        return 10, 3, 5, None, 100, 1
+
+    # If the transition_data.txt file exists, read the settings from there
+    if not os.path.exists(read_path):
+        print(f"Reading path at {transition_data_path}")
+        read_path = os.path.join(folder_path, "0/batch_settings.txt")
+        video_path = os.path.join(folder_path, "main_video.mp4")
+
+        # Read the settings from the transition_data.txt file (unknown how this work)
+        # with open(transition_data_path, "r") as b:
+        #     merge = str(b.readline().strip())
+        #     border = int(b.readline().strip())
+
+        # Read the settings from the batch_settings.txt file
+        with open(read_path, "r") as f:
+            fps = int(f.readline().strip())
+            sides = int(f.readline().strip())
+            batch_size = int(f.readline().strip())
+            f.readline().strip()
+            max_frames = int(f.readline().strip())
+            border = int(f.readline().strip())
+
+    # Otherwise, read the settings from the batch_settings.txt file
+    else:
+        print(f"Reading path at {read_path}")
+        with open(read_path, "r") as f:
+            fps = int(f.readline().strip())
+            sides = int(f.readline().strip())
+            batch_size = int(f.readline().strip())
+            f.readline().strip()
+            video_path = os.path.join(folder_path, "input_video.mp4")
+            max_frames = int(f.readline().strip())
             border = int(f.readline().strip())
 
     return fps, sides, batch_size, video_path, max_frames, border
@@ -373,67 +459,71 @@ def save_settings(fps, sides, batch_size, video):
 
 def create_video_Processing_Tab():
     with gr.Column(visible=True, elem_id="Temporal_Kit") as main_panel:
-        dummy_component = gr.Label(visible=False)
         with gr.Row():
             with gr.Tabs(elem_id="mode_TemporalKit"):
-                with gr.Row():
-                    with gr.Tab(elem_id="input_TemporalKit", label="Input"):
-                        with gr.Row():
+                with gr.TabItem(elem_id="output_TemporalKit", label="Input"):
+                    with gr.Column():
+                        video = gr.Video(label="Input Video", elem_id="input_video", type="filepath")
+                        with gr.Column(variant="panel"):
+                            with gr.Row():
+                                sides = gr.Number(value=1, label="Sides", precision=0, interactive=True)
+                                resolution = gr.Number(value=512, label="Height Resolution", precision=1,
+                                                       interactive=True)
+                                batch_size = gr.Number(value=4, label="Frames per keyframe", precision=1,
+                                                       interactive=True)
+                                fps = gr.Number(value=24, precision=1, label="fps", interactive=True)
+                            with gr.Row():
+                                ebsynth_mode = gr.Checkbox(label="EBSynth Mode", value=True)
                             with gr.Column():
-                                video = gr.Video(label="Input Video", elem_id="input_video", type="filepath")
-                                with gr.Row():
-                                    sides = gr.Number(value=2, label="Sides", precision=0, interactive=True)
-                                    resolution = gr.Number(value=1024, label="Height Resolution", precision=1,
-                                                           interactive=True)
-                                with gr.Row():
-                                    batch_size = gr.Number(value=5, label="frames per keyframe", precision=1,
-                                                           interactive=True)
-                                    fps = gr.Number(value=30, precision=1, label="fps", interactive=True)
-                                    ebsynth_mode = gr.Checkbox(label="EBSynth Mode", value=False)
-                                with gr.Row():
-                                    savesettings = gr.Button("Save Settings")
-                                with gr.Row():
-                                    batch_folder = gr.Textbox(label="Target Folder",
-                                                              placeholder="This is ignored if neither batch run or ebsynth are checked")
+                                savesettings = gr.Button("Save Settings")
 
-                                with gr.Row():
-                                    with gr.Accordion("Batch Settings", open=False):
-                                        with gr.Row():
-                                            batch_checkbox = gr.Checkbox(label="Batch Run", value=False)
-                                            max_keyframes = gr.Number(value=-1, label="Max key frames", precision=1,
-                                                                      interactive=True, placeholder="for all frames")
-                                            border_frames = gr.Number(value=2, label="Border Key Frames", precision=1,
-                                                                      interactive=True, placeholder="border frames")
-                                with gr.Row():
-                                    with gr.Accordion("EBSynth Settings", open=False):
-                                        with gr.Row():
-                                            split_video = gr.Checkbox(label="Split Video", value=False)
-                                            split_based_on_cuts = gr.Checkbox(label="Split based on cuts (as well)",
-                                                                              value=False)
-                                            # interpolate = gr.Checkbox(label="Interpolate(high memory)", value=False)
+                        with gr.Row():
+                            batch_folder = gr.Textbox(label="Target Folder",
+                                                      placeholder="This is ignored if neither batch run or ebsynth are checked")
 
-            savesettings.click(
-                fn=save_settings,
-                inputs=[fps, sides, batch_size, video]
-            )
+                        with gr.Row():
+                            with gr.Accordion("Batch Settings", open=False):
+                                with gr.Row():
+                                    batch_checkbox = gr.Checkbox(label="Batch Run", value=False)
+                                    max_keyframes = gr.Number(value=-1, label="Max key frames", precision=1,
+                                                              interactive=True, placeholder="for all frames")
+                                    border_frames = gr.Number(value=0, label="Border Key Frames", precision=1,
+                                                              interactive=True, placeholder="border frames")
+                        with gr.Row():
+                            with gr.Accordion("EBSynth Settings", open=False):
+                                with gr.Row():
+                                    split_video = gr.Checkbox(label="Split Video", value=False)
+                                    split_based_on_cuts = gr.Checkbox(label="Split based on cuts (as well)",
+                                                                      value=False)
+                                    # interpolate = gr.Checkbox(label="Interpolate(high memory)", value=False)
+
             with gr.Tabs(elemn_id="TemporalKit_gallery_container"):
                 with gr.TabItem(elem_id="output_TemporalKit", label="Output"):
                     with gr.Row():
-                        result_image = gr.outputs.Image(type='pil')
+                        result_image = gr.Image(type='pil', interactive=False, label="Output Image", )
                     with gr.Row():
-                        runbutton = gr.Button("Run")
+                        runbutton = gr.Button("Run", variant="primary")
                     with gr.Row():
                         send_to_buttons = parameters_copypaste.create_buttons(["img2img"])
 
                 try:
                     parameters_copypaste.bind_buttons(send_to_buttons, result_image, [""])
-                except:
-                    print("failed")
-                    pass
+                except Exception as e:
+                    print(e)
+
+    video.change(
+        fn=read_video_setting,
+        inputs=[video],
+        outputs=[fps, batch_size])
+    savesettings.click(
+        fn=save_settings,
+        inputs=[fps, sides, batch_size, video]
+    )
     parameters_copypaste.add_paste_fields("TemporalKit", result_image, None)
-    runbutton.click(preprocess_video,
-                    [video, fps, batch_size, sides, resolution, batch_checkbox, max_keyframes, batch_folder,
-                     border_frames, ebsynth_mode, split_video, split_based_on_cuts], result_image)
+    runbutton.click(fn=preprocess_video,
+                    inputs=[video, fps, batch_size, sides, resolution, batch_checkbox, max_keyframes, batch_folder,
+                            border_frames, ebsynth_mode, split_video, split_based_on_cuts],
+                    outputs=result_image)
 
 
 def show_textbox(option):
@@ -537,46 +627,61 @@ def create_ebsynth_tab():
         with gr.Row():
             with gr.Tabs(elem_id="mode_TemporalKit"):
                 with gr.Row():
-                    with gr.Tab(elem_id="input_diffuse", label="Generate Batch"):
+                    with gr.Tab(elem_id="input_diffuse", label="Generate"):
                         with gr.Column():
+                            with gr.Row(variant="panel"):
+                                with gr.Row():
+                                    input_folder = gr.Textbox(label="Input Folder (Target Folder)",
+                                                              placeholder="The whole folder, generated before, not just "
+                                                                          "the output folder")
+                                with gr.Row():
+                                    read_last_settings_synth = gr.Button("Read Settings", elem_id="read_last_settings")
                             with gr.Row():
-                                input_folder = gr.Textbox(label="Input Folder",
-                                                          placeholder="the whole folder, generated before, not just the output folder")
-                                input_video = gr.Video(label="Input Video", elem_id="input_videopage2")
-                            with gr.Row():
-                                read_last_settings_synth = gr.Button("read_last_settings", elem_id="read_last_settings")
-                            with gr.Row():
-                                fps = gr.Number(label="FPS", value=10, precision=1)
-                                per_side = gr.Number(label="per side", value=3, precision=1)
-                                output_resolution_batch = gr.Number(label="output resolution", value=1024, precision=1)
-                                batch_size = gr.Number(label="batch size", value=5, precision=1)
-                                max_frames = gr.Number(label="max frames", value=100, precision=1)
+                                input_video = gr.Video(label="Input Video", elem_id="input_videopage2", type="filepath",
+                                                       interactive=False)
+                            with gr.Row(variant="panel"):
+                                fps = gr.Number(label="Video FPS", value=10, precision=1)
+                                per_side = gr.Number(label="Side", value=3, precision=1)
+                                output_resolution_batch = gr.Number(label="Output images resolution", value=1024,
+                                                                    precision=1)
+                                batch_size = gr.Number(label="Frames per keyframe", value=5, precision=1)
+                                max_frames = gr.Number(label="Max frames", value=0, precision=1)
                                 border_frames = gr.Number(value=1, label="Border Frames", precision=1, interactive=True,
                                                           placeholder="border frames")
+                                with gr.Row():
+                                    create_ebs = gr.Checkbox(label="Create ebsynth file (.ebs)", value=True)
                             with gr.Row():
-                                runButton = gr.Button("prepare ebsynth", elem_id="run_button")
-                                recombineButton = gr.Button("recombine ebsynth", elem_id="recombine_button")
+                                run_button = gr.Button("Prepare ebsynth", elem_id="run_button", variant="primary")
+                                recombine_button = gr.Button("Recombine ebsynth", elem_id="recombine_button",
+                                                             variant="primary")
+
             with gr.Tabs(elem_id="mode_TemporalKit"):
                 with gr.Row():
                     with gr.Tab(elem_id="input_diffuse", label="Output"):
                         with gr.Column():
                             # newbutton = gr.Button("update", elem_id="update_button")
-                            outputvideo = gr.File()
+                            output_file = gr.File(interactive=False)
+
         read_last_settings_synth.click(
             fn=update_settings_from_file,
             inputs=[input_folder],
             outputs=[fps, per_side, batch_size, input_video, max_frames, border_frames]
         )
-        runButton.click(
+        input_folder.input(
+            fn=update_settings_from_file,
+            inputs=[input_folder],
+            outputs=[fps, per_side, batch_size, input_video, max_frames, border_frames]
+        )
+        run_button.click(
             fn=post_process_ebsynth,
             inputs=[input_folder, input_video, fps, per_side, output_resolution_batch, batch_size, max_frames,
                     border_frames],
-            outputs=outputvideo
+            outputs=output_file
         )
-        recombineButton.click(
+        recombine_button.click(
             fn=recombine_ebsynth,
             inputs=[input_folder, fps, border_frames, batch_size],
-            outputs=outputvideo
+            outputs=output_file
         )
 
 

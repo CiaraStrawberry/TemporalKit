@@ -1,23 +1,22 @@
-import os
-import glob
-from moviepy.editor import *
-import tempfile
-#om nom nom nom
-import requests
-import json
-from pprint import pprint
 import base64
-import numpy as np
-from io import BytesIO
-import scripts.optical_flow_simple as opflow
-from PIL import Image, ImageOps,ImageFilter
-import io
-from collections import deque
-import cv2
 import copy
+import glob
+import io
+# om nom nom nom
+import json
+import os
 import shutil
 import subprocess
+import tempfile
+from collections import deque
+from io import BytesIO
+
+import cv2
+import numpy as np
 import scenedetect
+from PIL import Image, ImageOps, ImageFilter
+from moviepy.editor import *
+from tqdm.auto import tqdm
 
 window_size = 5 
 
@@ -615,7 +614,7 @@ def crossfade_images(image1, image2, alpha):
 
 
 def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_interpolation=False):
-    print(f"Interpolating extra frames with max frames {max_frames} and interpolating = {perform_interpolation}" )
+    tqdm.write(f"Interpolating extra frames with max frames {max_frames} and interpolating = {perform_interpolation}")
 
     def get_video_info(video_path):
         cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', video_path]
@@ -644,7 +643,7 @@ def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_inte
     
     video_clip = VideoFileClip(video_path)
     video_duration = video_clip.duration
-    print (f"video duration is {video_duration}")
+    tqdm.write(f"Video duration is {video_duration}")
     frames = []
     frame_ratio = original_fps / target_fps
     frame_time = 1 / target_fps
@@ -658,7 +657,7 @@ def extract_frames_movpie(input_video, target_fps, max_frames=None, perform_inte
 
     if not perform_interpolation or target_fps <= original_fps:
         frame_repeat = int(target_fps / original_fps)
-        print (f"frame repeat is {frame_repeat}, target fps is {target_fps} and original fps is {original_fps}")
+        tqdm.write(f"Frame repeat is {frame_repeat}, target fps is {target_fps} and original fps is {original_fps}")
         if frame_repeat == 0: 
             frame_repeat = 1
         input_frame_time = 0
