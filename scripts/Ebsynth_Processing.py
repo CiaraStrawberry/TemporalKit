@@ -41,17 +41,18 @@ def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution, s
     #  else:
 
     video_data = bmethod.convert_video_to_bytes(video_path)
-    frames = butility.extract_frames_movpie(video_data, fps, max_frames)
+    frames = butility.extract_frames_movpy(video_data, fps, max_frames)
     input_folder = os.path.join(output_folder, "input")  # input folder for ebsynth
-    tqdm.write(f"Full frames num = {len(frames)}")
+    total_frames = len(frames)
+    tqdm.write(f"Full frames num = {total_frames}")
 
-    # gradio progress bar
-    progress_total = len(frames) + int(np.ceil(len(frames) / batch_size))
-    # total progress for all directories
-    gr_progress_total = (len(frames) + int(np.ceil(len(frames) / batch_size))) * total_dir
-    # already done in previous directories
-    gr_progress_already_done = index_dir * (len(frames) + int(np.ceil(len(frames) / batch_size)))
-    progress(gr_progress_already_done / gr_progress_total, "Loading...")
+    # progress bar
+    progress_total = total_frames + int(np.ceil(total_frames / batch_size))  # tqdm progress bar
+    # total progress for all directories for gradio progress bar
+    gr_progress_total = (total_frames + int(np.ceil(total_frames / batch_size))) * total_dir
+    # already done in previous directories for gradio progress bar
+    gr_progress_already_done = index_dir * (total_frames + int(np.ceil(total_frames / batch_size)))
+    progress(gr_progress_already_done / gr_progress_total, "Loading...")  # update gradio progress bar
 
     # create output, keys folders if they don't exist
     output_frames_folder = os.path.join(output_folder, "frames")
@@ -61,13 +62,16 @@ def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution, s
     if not os.path.exists(output_keys_folder):
         os.makedirs(output_keys_folder)
 
+    # get original frame size
     filenames = os.listdir(input_folder)
     img = Image.open(os.path.join(input_folder, filenames[0]))
     original_width, original_height = img.size
     height, width = frames[0].shape[:2]
 
+    # calculate aspect ratio
     texture_aspect_ratio = float(width) / float(height)
 
+    # calculate new frame size
     _smol_frame_height = _smol_resolution
     _smol_frame_width = int(_smol_frame_height * texture_aspect_ratio)
     tqdm.write(f"Saving size = {_smol_frame_width}x{_smol_frame_height}")
@@ -75,7 +79,7 @@ def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution, s
     with tqdm(total=progress_total, position=1, desc="Total") as pbar1:
 
         # save original frames
-        with tqdm(total=len(frames), position=0, desc="Saving frames") as pbar2:
+        with tqdm(total=total_frames, position=0, desc="Saving frames") as pbar2:
             for i, frame in enumerate(frames):
                 frame_to_save = cv2.resize(frame, (_smol_frame_width, _smol_frame_height), interpolation=cv2.INTER_LINEAR)
                 bmethod.save_square_texture(frame_to_save, os.path.join(output_frames_folder, "frames{:05d}.png".format(i)))
@@ -86,28 +90,29 @@ def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution, s
                 progress((i + gr_progress_already_done) / gr_progress_total, "Saving frames...")
         # original_frame_height, original_frame_width = frames[0].shape[:2]
 
-        bigbatches, frameLocs = bmethod.split_frames_into_big_batches(frames, per_batch_limit, border, ebsynth=True,
+        # split frames into batches
+        big_batches, frame_locs = bmethod.split_frames_into_big_batches(frames, per_batch_limit, border, ebsynth=True,
                                                                       returnframe_locations=True)
-
-        bigprocessedbatches = []
+        big_processed_batches = []
         last_frame_end = 0
         # print(len(square_textures))  # debug
 
         # save keyframes
-        with tqdm(total=int(np.ceil(len(frames) / batch_size)), position=0, desc="Saving keyframes") as pbar2:
-            for a, big_batch in enumerate(bigbatches):
+        with tqdm(total=int(np.ceil(total_frames / batch_size)), position=0, desc="Saving keyframes") as pbar2:
+            for a, big_batch in enumerate(big_batches):
                 batches = bmethod.split_into_batches(big_batch, batch_size, per_side * per_side)
                 keyframes = [batch[int(len(batch) / 2)] for batch in batches]
 
+                # if there are more square textures than keyframes, use the last square texture for the remaining keyframes
                 if a < len(square_textures):
                     resized_square_texture = cv2.resize(square_textures[a], (original_width, original_height),
                                                         interpolation=cv2.INTER_LINEAR)
                     new_frames = bmethod.split_square_texture(resized_square_texture, len(keyframes), per_side * per_side,
                                                               _smol_resolution, True)
-                    new_frame_start, new_frame_end = frameLocs[a]
+                    new_frame_start, new_frame_end = frame_locs[a]  # TODO: ebsynth file
 
                     for b in range(len(new_frames)):
-                        print(new_frame_start)  # debug
+                        # print(new_frame_start)  # debug
                         inner_start = last_frame_end
                         inner_end = inner_start + len(batches[b])
                         last_frame_end = inner_end
@@ -121,13 +126,13 @@ def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution, s
                     # update progress bars
                     pbar2.update(1)
                     pbar1.update(1)
-                    progress((len(frames) + (a + 1) + gr_progress_already_done) / gr_progress_total, "Saving keyframes...")
+                    progress((total_frames + (a + 1) + gr_progress_already_done) / gr_progress_total, "Saving keyframes...")
 
         just_frame_groups = []
-        for i in range(len(bigprocessedbatches)):
+        for i in range(len(big_processed_batches)):
             newgroup = []
-            for b in range(len(bigprocessedbatches[i])):
-                newgroup.append(bigprocessedbatches[i][b])
+            for b in range(len(big_processed_batches[i])):
+                newgroup.append(big_processed_batches[i][b])
             just_frame_groups.append(newgroup)
 
 
@@ -136,7 +141,7 @@ def recombine(video_path, fps, per_side, batch_size, fillindenoise, edgedenoise,
     just_frame_groups = []
     per_batch_limmit = (((per_side * per_side) * batch_size)) - border
     video_data = bmethod.convert_video_to_bytes(video_path)
-    frames = bmethod.extract_frames_movpie(video_data, fps, max_frames)
+    frames = bmethod.extract_frames_movpy(video_data, fps, max_frames)
     bigbatches, frameLocs = bmethod.split_frames_into_big_batches(frames, per_batch_limmit, border,
                                                                   returnframe_locations=True)
     bigprocessedbatches = []

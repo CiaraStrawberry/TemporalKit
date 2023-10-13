@@ -1,9 +1,9 @@
 import base64
 import math
-import os
 import re
 
 import cv2
+import gradio
 import numpy as np
 import scripts.berry_utility as utilityb
 import scripts.stable_diffusion_processing as sdprocess
@@ -88,7 +88,7 @@ def split_frames_into_big_batches(frames, batch_size, border, ebsynth, returnfra
     for i in range(num_batches):
         start_idx = i * batch_size
         end_idx = start_idx + batch_size
-        if ebsynth == False:
+        if not ebsynth:
             # Add border frames if not the last batch and if available
             if i < num_batches - 1:
                 end_idx += min(border, num_frames - end_idx)
@@ -106,7 +106,7 @@ def split_frames_into_big_batches(frames, batch_size, border, ebsynth, returnfra
         tqdm.write(f"Batch {i} has {len(batches[i])} frames")
         frame_locations.append((start_idx, end_idx))
 
-    if returnframe_locations == False:
+    if not returnframe_locations:
         return batches
     else:
         return batches, frame_locations
@@ -176,26 +176,30 @@ def convert_video_to_bytes(input_file):
 def generate_square_from_video(video_path, fps, batch_size, resolution, size_size):
     video_data = convert_video_to_bytes(video_path)
     frames_limit = (size_size * size_size) * batch_size
-    frames = utilityb.extract_frames_movpie(video_data, fps, frames_limit)
+    frames = utilityb.extract_frames_movpy(video_data, fps, frames_limit)
     # print(len(frames))  #debug
     number_of_batches = size_size * size_size
     batches = split_into_batches(frames, batch_size, number_of_batches)
-    tqdm.write("Number of batches:", len(batches))
+    tqdm.write(f"Number of batches: {len(batches)}")
     first_frames = [batch[0] for batch in batches]
-
     square_texture = create_square_texture(first_frames, resolution, side_length=size_size)
     # save_square_texture(square_texture, "./result/original.png")
 
     return square_texture
 
 
-def generate_squares_to_folder(video_path, fps, batch_size, resolution, size_size, max_frames, output_folder, border,
-                               ebsynth_mode, max_frames_to_save):
+def generate_squares_to_folder(video_path, fps, batch_size, resolution, size_size, max_key_frames, output_folder,
+                               border,
+                               ebsynth_mode, max_frames_to_save, *args, pbar=None, gr_progress=None,
+                               gr_progress_total_step=None, gr_progress_proceed_step=0):
     fps = int(fps)
-    if ebsynth_mode == False:
+    if not ebsynth_mode:
         if border >= (batch_size * size_size * size_size) / 2:
-            raise Exception("too many border frames, reduce border or increase batch size")
+            gradio.Warning("Too many border frames, reduce border or increase batch size")
+            raise Exception("Too many border frames, reduce border or increase batch size",
+                            (batch_size * size_size * size_size) / 2, batch_size, size_size)
 
+    # create folder
     input_folder_loc = os.path.join(output_folder, "input")
     output_folder_loc = os.path.join(output_folder, "output")
     debug_result = os.path.join(output_folder, "result")
@@ -210,36 +214,52 @@ def generate_squares_to_folder(video_path, fps, batch_size, resolution, size_siz
     frames_loc = os.path.join(output_folder, "frames")
     keys_loc = os.path.join(output_folder, "keys")
 
-    if ebsynth_mode == True:
+    # create folder for frames and keys if ebsynth mode is on
+    if ebsynth_mode:
         if not os.path.exists(frames_loc):
             os.makedirs(frames_loc)
         if not os.path.exists(keys_loc):
             os.makedirs(keys_loc)
 
+    # get video data
     video_data = convert_video_to_bytes(video_path)
-    per_batch_limmit = ((size_size * size_size) * batch_size) + border
+    per_batch_limit = ((size_size * size_size) * batch_size) + border
     # if ebsynth_mode == False:
-    #    per_batch_limmit = per_batch_limmit + border
-    frames = utilityb.extract_frames_movpie(video_data, fps, max_frames, False)
+    #    per_batch_limit = per_batch_limit + border
+    frames = utilityb.extract_frames_movpy(video_data, fps, max_key_frames, perform_interpolation=False)
+    # print(per_batch_limit, size_size, batch_size, border)  # debug
 
-    bigbatches = split_frames_into_big_batches(frames, per_batch_limmit, border, ebsynth=ebsynth_mode)
+    # split frames into batches
+    big_batches = split_frames_into_big_batches(frames, per_batch_limit, border, ebsynth=ebsynth_mode)
     square_textures = []
     height = 0
     width = 0
-    for i in range(len(bigbatches)):
-        batches = split_into_batches(bigbatches[i], batch_size, size_size * size_size)
-        print("Number of batches:", len(batches))
-        if ebsynth_mode == False:
-            keyframes = [batch[0] for batch in batches]
-        else:
-            keyframes = [batch[int(len(batch) / 2)] for batch in batches]
-        # for batch in batches:
-        # print (f"framenum = {int(len(batch)/2)} out of batch length {len(batch)} and size {len(frames)}")
-        square_texture = create_square_texture(keyframes, resolution, side_length=size_size)
-        save_square_texture(square_texture, os.path.join(input_folder_loc, f"input{i}.png"))
-        square_textures.append(square_texture)
-        height = square_texture.shape[0]
-        width = square_texture.shape[1]
+
+    # if gr_progress_total_step is None, set it to len(big_batches)
+    gr_progress_total_step = len(big_batches) if gr_progress_total_step is None else gr_progress_total_step
+
+    with tqdm(total=len(big_batches), desc="Saving keyframes", position=2) as pbar1:
+        for i in range(len(big_batches)):
+            tqdm.write(f"Working on batch {i}")
+            batches = split_into_batches(big_batches[i], batch_size, size_size * size_size)
+            # print("Number of batches:", len(batches))  # debug
+            if not ebsynth_mode:
+                keyframes = [batch[0] for batch in batches]
+            else:
+                keyframes = [batch[int(len(batch) / 2)] for batch in batches]
+            # for batch in batches:
+            #   print (f"framenum = {int(len(batch)/2)} out of batch length {len(batch)} and size {len(frames)}")
+            square_texture = create_square_texture(keyframes, resolution, side_length=size_size)
+            save_square_texture(square_texture, os.path.join(input_folder_loc, f"input{i}.png"))
+            square_textures.append(square_texture)
+            height = square_texture.shape[0]
+            width = square_texture.shape[1]
+
+            # update progress bar
+            pbar1.update(1)
+            pbar is not None and pbar.update(1)
+            gr_progress is not None and gr_progress((gr_progress_proceed_step + i) / gr_progress_total_step,
+                                                    "Saving keyframes...")
 
     batch_settings_loc = os.path.join(output_folder, "batch_settings.txt")
     with open(batch_settings_loc, "w") as f:
@@ -295,7 +315,7 @@ def process_video_batch(video_path_old, fps, per_side, batch_size, fillindenoise
     video_path = os.path.join(output_folder, "input_video.mp4")
     per_batch_limmit = (((per_side * per_side) * batch_size)) + border
     video_data = convert_video_to_bytes(video_path)
-    frames = utilityb.extract_frames_movpie(video_data, fps, max_frames)
+    frames = utilityb.extract_frames_movpy(video_data, fps, max_frames)
     print(f"splitting into batches with per_batch_limmit = {per_batch_limmit} and border {border}")
     bigbatches = split_frames_into_big_batches(frames, per_batch_limmit, border, ebsynth=False)
     bigprocessedbatches = []
@@ -336,7 +356,7 @@ def process_video_single(video_path, fps, per_side, batch_size, fillindenoise, e
     utilityb.delete_folder_contents(extension_save_folder)
     # rerun the generatesquarefromvideo function to get the unaltered square texture
     video_data = convert_video_to_bytes(video_path)
-    frames = utilityb.extract_frames_movpie(video_data, fps, frames_limit)
+    frames = utilityb.extract_frames_movpy(video_data, fps, frames_limit)
     processed_frames = process_video(frames, per_side, batch_size, fillindenoise, edgedenoise, _smol_resolution,
                                      square_texture)
     output_video_path = os.path.join(output_folder, "output.mp4")
@@ -584,22 +604,39 @@ def interpolate_video(input_path, output_path, output_fps):
     return output_path
 
 
-def split_videos_into_smaller_videos(max_keys, video, fps, max_frames, target_path, border_number, scenecuts=False):
+def split_videos_into_smaller_videos(max_keys, video, fps, max_frames, target_path, border_number, scenecuts=False,
+                                     *args, pbar=None, gr_progress=None, gr_progress_total_step=None,
+                                     gr_progress_proceed_step=0):
     max_total_frames = int((max_keys / 20) * max_frames)
     split_frames, border_indices = divideFrames(video, max_frames, border_number)
     split_frames_trimmed, trimmed_borders = trim_images(split_frames, max_total_frames, border_indices)
-    tqdm.write(f" Trim_imagestransitions {border_indices}")
+    # print(f" trim_imagestransitions {border_indices}") # debug
+    # print(max_total_frames, border_indices, trimmed_borders, border_number, max_frames)  # debug
     output_files = []
     tqdm.write(
         f"Frames_total_size = {len(split_frames_trimmed)}, frames batch size = {max_frames} array length = {len(split_frames_trimmed)}")
 
-    for i, frames in enumerate(split_frames_trimmed):
-        tqdm.write(f"Splitting video {i}")
-        new_folder_location = os.path.join(target_path, f"{i}")
-        if not os.path.exists(new_folder_location):
-            os.makedirs(new_folder_location)
-        new_video_loc = os.path.join(new_folder_location, f"input_video.mp4")
-        output_files.append(utilityb.pil_images_to_video(frames, new_video_loc, fps))
+    # if gr_progress_total_step is None else gr_progress_total_step
+    gr_progress_total_step = len(split_frames_trimmed) if gr_progress_total_step is None else gr_progress_total_step
+
+    # Split the video into smaller videos
+    with tqdm(total=len(split_frames_trimmed), desc="Splitting video", position=2) as pbar1:
+        for i, frames in enumerate(split_frames_trimmed):
+            tqdm.write(f"Splitting video {i}")
+            new_folder_location = os.path.join(target_path, f"{i}")
+
+            if not os.path.exists(new_folder_location):
+                os.makedirs(new_folder_location)
+
+            new_video_loc = os.path.join(new_folder_location, f"input_video.mp4")
+            output_files.append(utilityb.pil_images_to_video(frames, new_video_loc, fps))
+
+            # update progress bar
+            pbar1.update(1)
+            pbar is not None and pbar.update(1)
+            gr_progress is not None and gr_progress((gr_progress_proceed_step + i) / gr_progress_total_step,
+                                                    "Splitting video...")
+
     return output_files, trimmed_borders
 
 
@@ -608,7 +645,7 @@ def divideFrames(frame_groups, x, y):
     transitions = []
 
     for index, group in enumerate(frame_groups):
-        print(f"frame_groups {len(group)}")
+        # print(f"frame_groups {len(group)}")  # debug
         start = 0
         while start < len(group):
             end = start + x
@@ -622,7 +659,7 @@ def divideFrames(frame_groups, x, y):
                     combined_group = np.concatenate((new_group, overlap_group), axis=0)
                 else:
                     combined_group = new_group
-                print(f"overlap group size {len(overlap_group)}")
+                # print(f"overlap group size {len(overlap_group)}")  # debug
                 transitions.append(len(result))
 
             else:
@@ -649,7 +686,7 @@ def trim_images(images_list_of_lists, max_images, border_indices):
     total_images = sum([len(img_list) for img_list in images_list_of_lists])
 
     while total_images > max_images:
-        print(f"total_images = {total_images}, max_images = {max_images}")
+        # print(f"total_images = {total_images}, max_images = {max_images}")    # debug
         last_list_idx = len(images_list_of_lists) - 1
         last_img_idx = len(images_list_of_lists[last_list_idx]) - 1
 
