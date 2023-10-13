@@ -11,10 +11,11 @@ from PIL import Image
 from tqdm.auto import tqdm
 
 import extensions.TemporalKit.scripts.berry_utility
+from extensions.TemporalKit.scripts.ebsynthfile import EBSynthProject
 
 
 def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution, square_textures, max_frames,
-                      output_folder, border=0, progress=gr.Progress(), index_dir=0, total_dir=1):
+                      output_folder, border=0, *args, progress=gr.Progress(), index_dir=0, total_dir=1, ebs_file=False):
     """
     Sort the frames of a video into folders for use with EBSynth.
 
@@ -33,7 +34,7 @@ def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution, s
     """
 
     per_batch_limit = ((per_side * per_side) * batch_size) + border
-
+    ebs_project = EBSynthProject("frames/frames[#####].png", "keys/keys[#####].png", "", False)
     #  original_frames_directory = os.path.join(output_folder, "original_frames")
     #  if os.path.exists(original_frames_directory):
     #      for filename in os.listdir(original_frames_directory):
@@ -81,8 +82,10 @@ def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution, s
         # save original frames
         with tqdm(total=total_frames, position=0, desc="Saving frames") as pbar2:
             for i, frame in enumerate(frames):
-                frame_to_save = cv2.resize(frame, (_smol_frame_width, _smol_frame_height), interpolation=cv2.INTER_LINEAR)
-                bmethod.save_square_texture(frame_to_save, os.path.join(output_frames_folder, "frames{:05d}.png".format(i)))
+                frame_to_save = cv2.resize(frame, (_smol_frame_width, _smol_frame_height),
+                                           interpolation=cv2.INTER_LINEAR)
+                bmethod.save_square_texture(frame_to_save,
+                                            os.path.join(output_frames_folder, "frames{:05d}.png".format(i)))
 
                 # update progress bars
                 pbar2.update(1)
@@ -92,7 +95,7 @@ def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution, s
 
         # split frames into batches
         big_batches, frame_locs = bmethod.split_frames_into_big_batches(frames, per_batch_limit, border, ebsynth=True,
-                                                                      returnframe_locations=True)
+                                                                        returnframe_locations=True)
         big_processed_batches = []
         last_frame_end = 0
         # print(len(square_textures))  # debug
@@ -107,9 +110,10 @@ def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution, s
                 if a < len(square_textures):
                     resized_square_texture = cv2.resize(square_textures[a], (original_width, original_height),
                                                         interpolation=cv2.INTER_LINEAR)
-                    new_frames = bmethod.split_square_texture(resized_square_texture, len(keyframes), per_side * per_side,
+                    new_frames = bmethod.split_square_texture(resized_square_texture, len(keyframes),
+                                                              per_side * per_side,
                                                               _smol_resolution, True)
-                    new_frame_start, new_frame_end = frame_locs[a]  # TODO: ebsynth file
+                    new_frame_start, new_frame_end = frame_locs[a]
 
                     for b in range(len(new_frames)):
                         # print(new_frame_start)  # debug
@@ -120,20 +124,33 @@ def sort_into_folders(video_path, fps, per_side, batch_size, _smol_resolution, s
                         tqdm.write(f"Saving at frame {frame_position}")
                         frame_to_save = cv2.resize(new_frames[b], (_smol_frame_width, _smol_frame_height),
                                                    interpolation=cv2.INTER_LINEAR)
-                        bmethod.save_square_texture(frame_to_save,
-                                                    os.path.join(output_keys_folder, "keys{:05d}.png".format(frame_position)))
+                        bmethod.save_square_texture(
+                            frame_to_save, os.path.join(output_keys_folder, "keys{:05d}.png".format(frame_position)))
+
+                    # ebsynth file
+                    ebs_project.AddKeyFrame(True, True, max(0, frame_position - len(batches[b])), frame_position,
+                                            min(len(frames)-1, frame_position + len(batches[b])),
+                                            "out_{:05d}/[#####].png".format(frame_position))
 
                     # update progress bars
                     pbar2.update(1)
                     pbar1.update(1)
-                    progress((total_frames + (a + 1) + gr_progress_already_done) / gr_progress_total, "Saving keyframes...")
+                    progress((total_frames + (a + 1) + gr_progress_already_done) / gr_progress_total,
+                             "Saving keyframes...")
 
+            # save ebsynth file
+            ebs_project.WriteToFile(os.path.join(output_folder, "keys.ebs"))
+            ebs_project.keyFrames.clear()
+
+        # TODO: unknown what this does (by cocomine)
         just_frame_groups = []
         for i in range(len(big_processed_batches)):
             newgroup = []
             for b in range(len(big_processed_batches[i])):
                 newgroup.append(big_processed_batches[i][b])
             just_frame_groups.append(newgroup)
+
+        return
 
 
 def recombine(video_path, fps, per_side, batch_size, fillindenoise, edgedenoise, _smol_resolution, square_textures,
