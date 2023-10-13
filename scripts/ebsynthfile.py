@@ -115,9 +115,6 @@ class EBSynthProject:
         keyFrame = EBSynthKeyFrame(useFirstFrame, useLastFrame, firstFrame, keyFrame, lastFrame, outputPath)
         self.keyFrames.append(keyFrame)
 
-    def __delattr__(self, __name: str) -> None:
-        super().__delattr__(__name)
-
 # Usage
 # project = EBSynthProject(videoPath, keysPath, maskPath, useMask)
 # project.AddKeyFrame(useFirstFrame, useLastFrame, firstFrame, middleFrame, lastFrame, outputPath)

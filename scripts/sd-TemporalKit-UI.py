@@ -575,7 +575,7 @@ def create_video_processing_tab():
                                                        interactive=True)
                                 batch_size = gr.Number(value=4, label="Frames per keyframe", precision=0,
                                                        interactive=True)
-                                fps = gr.Number(value=24, precision=0, label="fps", interactive=True)
+                                fps = gr.Number(value=24, precision=0, label="Video FPS", interactive=True)
                             with gr.Row():
                                 ebsynth_mode = gr.Checkbox(label="EBSynth Mode", value=True)
                             with gr.Column():

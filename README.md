@@ -2,8 +2,6 @@ TemporalKit
 ===
 An all in one solution for adding Temporal Stability to a Stable Diffusion Render via an automatic1111 extension
 
-<br><br>
-
 ---
 
 ***You must install FFMPEG to path before running this***
@@ -95,8 +93,8 @@ sudo pacman -S ffmpeg
 ```
 
 #### Windows
-Download and install from https://ffmpeg.org/download.html
-Make sure to add ffmpeg to your PATH.
+Download and install from https://ffmpeg.org/download.html <br>
+Make sure to add ffmpeg to your PATH. <br>
 Learn more: https://www.wikihow.com/Install-FFmpeg-on-Windows
 
 ### Step 4: Prepare your video
@@ -107,15 +105,13 @@ Prepare the video you need to use (referred to as the original video in subseque
 1. Open `Temporal-Kit` Tab on Top.
 2. Open `Pre-Process` Tab.
 2. Drag & Drop the original video into the `Input Video`.
-3. Set `fps` to the frame rate of the original video. 
-4. Set `frames per keyframe` to the number of frames between each keyframe. For example, if the original video is 30fps and you set it to 10, then 3 keyframes will be generated per second, and the rest will be estimated.
+3. Set `Video FPS` to the frame rate of the original video. 
+4. Set `Frames per keyframe` to the number of frames between each keyframe. For example, if the original video is 30fps and you set it to 10, then 3 keyframes will be generated per second, and the rest will be estimated.
 5. Set `Side` to the square root of the number of frames per plate. For example, if you set it to 2, 4 plates(2x2) will be generated, 3, 9 plates(3x3), 4, 16 plates(4x4).
 6. Set `Height Resolution` to the size of each plate. It is strongly recommended that you set this to a multiple of your side variable. <br> For example, if you want to generate 4 plates and set the side to 2, each plate high 512, then you need to set the height resolution to 1024(512x2).
 7. Set `Target Folder` to the folder you created in [step 4](#step-4-prepare-your-video).
-8. Open `Batch Settings` Tab.
-9. Tick the `Batch Run`.
-10. Open `EBsynth` Tab.
-11. Tick the `Split Video`
+8. Tick the `Batch Run`.
+9. Tick the `Split Video`
 
 When you complete the above steps you should see a structure similar to this in the folder you specified (depending on the length of your video)
 
@@ -128,11 +124,10 @@ You will see a structure like this in the video clips divided into folders named
 > If you encounter out of memory issue in the next **img2img** step, reduce the `side` or `Height Resolution` parameters.
 
 ### Step 6: Perform Img2img on keyframes
-Let’s deal with the folder named `0` first. <br>
 Go to the **Img2img** page. Switch to the **Batch** tab. Set the following parameters:
 
-**Input directory**: The name of your [target directory](#step-4-prepare-your-video) with `\input` appended. E.g. `YOUR_FOLDER_PATH_IN_SETP_4\0\input` <br>
-**Output directory**: Similarly but with `\output` appended. E.g. `YOUR_FOLDER_PATH_IN_SETP_4\0\output`
+**Input directory**: The name of your [target directory](#step-4-prepare-your-video) with `\input` appended. E.g. `YOUR_FOLDER_PATH_IN_SETP_4\input` <br>
+**Output directory**: Similarly but with `\output` appended. E.g. `YOUR_FOLDER_PATH_IN_SETP_4\output`
 
 Enter a **prompt** and a **negative prompt** like txt2img. <br>
 **Sampling method:** DPM++2M Karras <br>
@@ -142,7 +137,7 @@ Enter a **prompt** and a **negative prompt** like txt2img. <br>
 > The above parameters can be changed as needed.
 
 
-##### Control Net (option, which would give better results if available)
+### Step 6.1: Control Net (option, which would give better results if available)
 In ControlNet (Unit 0) section, set:
 + Enable: Yes
 + Pixel Perfect: Yes
@@ -159,11 +154,12 @@ Press **Generate**. After it is done, you will find the image in the batch outpu
 ### Step 7: Prepare EbSynth data
 Go to `Temporal-Kit` page and switch to the `Ebsynth-Process` tab.
 
-**Input Folder:** Put in the same [target folder](#step-4-prepare-your-video) path you put in the Pre-Processing page. E.g. `YOUR_FOLDER_PATH_IN_SETP_4\0`
+**Input Folder:** Put in the same [target folder](#step-4-prepare-your-video) path you put in the Pre-Processing page.
 
-Click read last_settings. If your input folder is correct, the video and the settings will be populated.
+Click `Read Setting`. If your input folder is correct, the video and the settings will be populated.
 
-Click prepare ebsynth. After it is done, you should see the keys folder populated with your stylized keyframes, and the frames folder populated with your images.
+Click prepare ebsynth. After it is done, you should see the keys folder populated with your stylized keyframes, and the 
+frames folder populated with your images. _(In a folder named with a number)_
 
 ![folder structure](/readme_img/3.png)
 ![folder structure](/readme_img/4.png)
@@ -173,15 +169,16 @@ Click prepare ebsynth. After it is done, you should see the keys folder populate
 ### Step 8: Process with EbSynth
 Now open the **EbSynth** program.
 
-Open the File Explorer and navigate to the folder your creation in [step4](#step-4-prepare-your-video). You should folder like the ones showed below. We need the **keys** folder and the **frames** folder for EbSynth.
-
-Drag the **keys** folder from the File Explorer and drop it to the **Keyframes** field in EbSynth. <br>
-Drag the **frames** folder from the File Explorer and drop it to the **frames** field in EbSynth.
+Open the File Explorer and navigate to the folder your creation in [step4](#step-4-prepare-your-video). You should folder 
+like the ones showed below. Then open the `keys.ebs` file. _(In a folder named with a number)_
 
 ![folder structure](/readme_img/5.png)
+![ebs](/readme_img/6.png)
 
 Click **Run All** and wait for them to complete.
 When it is done, you should see a series of `out_#####` directories generated in the [target project folder](#step-4-prepare-your-video).
+
+Then repeat the above steps in other folders named with numbers.
 
 > Please download the program from the official website. <br>
 > https://ebsynth.com/
@@ -195,13 +192,14 @@ Click **recombine ebsynth** and you are done!
 
 Look how smooth the video is. With some tweaking, you can probably make it better!
 
-### Step 10: Continue processing other split segments
-Repeat steps [6](#step-6-perform-img2img-on-keyframes) to [9](#step-9-generate-the-final-video). Process other folders `(1,2,3,4,...)`
+---
 
-### Step 11: Combine the split videos
-Use a video splicing program to merge segmented videos
-
-<br><br>
+Updates Log
+---
+### 1.0
+- Improved interface layout [cocomine contributed]
+- Add progress display (Some pages) [cocomine contributed]
+- Generate ebsynth files [cocomine contributed]
 
 ---
 
