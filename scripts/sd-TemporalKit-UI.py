@@ -292,16 +292,16 @@ def post_process_ebsynth(input_folder, video, fps, per_side, output_resolution, 
                 # loop through each image file in the image folder
                 for img_file in os.listdir(img_folder):
                     # check if the image filename starts with the directory name followed by the word "and" and a sequence of one or more digits, then ends with '.png'
-                    if re.match(f"^.*{d}and\d+.*\.png$", img_file):
+                    if re.match(f"^.*-{d}and\d+\.png$", img_file):
                         img_names.append(img_file)
                 tqdm.write(f"Post processing = {os.path.dirname(folder_video)}")
                 square_textures = []
 
                 # loop through each image file name
                 for img_name in sorted(img_names, key=lambda x: int(re.search(r'and(\d+)', x).group(1))):
-                    img = Image.open(os.path.join(input_images_folder, img_name))
                     # Convert image to NumPy array and append to images list
                     tqdm.write(f"Read output keyframe {os.path.join(input_images_folder, img_name)}")
+                    img = Image.open(os.path.join(input_images_folder, img_name))
                     square_textures.append(np.array(img))
 
                 ebsynth.sort_into_folders(video_path=folder_video, fps=fps, per_side=per_side,
@@ -338,7 +338,7 @@ def recombine_ebsynth(input_folder, fps, border_frames, batch):
         for d in numeric_dirs:
             folder_loc = os.path.join(input_folder, d)
             # loop through each image file in the image folder
-            new_video = ebsynth.crossfade_folder_of_folders(folder_loc, fps=fps)
+            new_video = ebsynth.crossfade_folder_of_folders(folder_loc, fps=fps, return_generated_video_path=True)
             # print(f"generated new video at location {new_video}")
             generated_videos.append(new_video)
 
