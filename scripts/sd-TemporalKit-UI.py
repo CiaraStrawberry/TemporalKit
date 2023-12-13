@@ -355,7 +355,6 @@ def recombine_ebsynth(input_folder, fps, border_frames, batch):
                                                    overlap_indexes=overlap_indicies, num_overlap_frames=border_frames,
                                                    output_path=os.path.join(input_folder, "output.mp4"))
         return output_video
-    return None
 
 
 def atoi(text):
