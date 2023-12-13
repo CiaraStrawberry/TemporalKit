@@ -25,12 +25,13 @@ A clear and concise description of what you expected to happen.
 If applicable, add screenshots to help explain your problem.
 
 **Error Log**
-Copy & Paste the error log in console.
+Copy & Paste the error log in console (Black window).
 
 **Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
+ - OS: [e.g. mac, window]
+ - Browser [e.g. chrome, safari, firefox]
  - SD Version [e.g. 1.6.0]
+ - Extended version: [e.g. 1.1]
 
 **Additional context**
 Add any other context about the problem here.
