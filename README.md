@@ -207,6 +207,11 @@ Look how smooth the video is. With some tweaking, you can probably make it bette
 
 Updates Log
 ---
+### 1.1
+- fix UI is not displayed
+- fix problem with image sorting
+- Fixed tqdm reinstall version 4.66.1
+
 ### 1.0
 - Improved interface layout [cocomine contributed]
 - Add progress display (Some pages) [cocomine contributed]
