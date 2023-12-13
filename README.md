@@ -211,6 +211,7 @@ Updates Log
 - fix UI is not displayed
 - fix problem with image sorting
 - Fixed tqdm reinstall version 4.66.1
+- fix recombine video
 
 ### 1.0
 - Improved interface layout [cocomine contributed]

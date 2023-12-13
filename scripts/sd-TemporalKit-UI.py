@@ -338,7 +338,7 @@ def recombine_ebsynth(input_folder, fps, border_frames, batch):
         for d in numeric_dirs:
             folder_loc = os.path.join(input_folder, d)
             # loop through each image file in the image folder
-            new_video = ebsynth.crossfade_folder_of_folders(folder_loc, fps=fps, return_generated_video_path=True)
+            new_video = ebsynth.crossfade_folder_of_folders(folder_loc, fps=fps, return_generated_video_path=False)
             # print(f"generated new video at location {new_video}")
             generated_videos.append(new_video)
 
@@ -352,7 +352,7 @@ def recombine_ebsynth(input_folder, fps, border_frames, batch):
             overlap_indicies.append(int(num))
 
         output_video = sd_utility.crossfade_videos(video_paths=generated_videos, fps=fps,
-                                                   overlap_indexes=overlap_indicies, num_overlap_frames=border_frames,
+                                                   overlap_indexes=overlap_indicies, num_overlap_frames=int(border_frames),
                                                    output_path=os.path.join(input_folder, "output.mp4"))
         return output_video
 

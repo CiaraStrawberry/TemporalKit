@@ -581,7 +581,7 @@ def crossfade_videos(video_paths, fps, overlap_indexes, num_overlap_frames, outp
                 alpha = 1 - (i / num_overlap_frames)  # set alpha value
                 if i > len(last_of_current) - 1 or i > len(first_of_next) - 1:
                     print("ran out of crossfade space at index ", str(i))
-                    break;
+                    break
 
                 new_frame = crossfade_frames(last_of_current[i], first_of_next[i], alpha)
                 # print (new_frame.shape)
@@ -589,7 +589,8 @@ def crossfade_videos(video_paths, fps, overlap_indexes, num_overlap_frames, outp
             print(
                 f"crossfaded {len(crossfaded)} frames with num overlap = {num_overlap_frames}, the last of current array is of length {len(last_of_current)} and the first of next is of length {len(first_of_next)}")
             # saving first of next and last of current
-            new_frames_arrays[index][-num_overlap_frames:] = crossfaded
+            if len(crossfaded) > 0:
+                new_frames_arrays[index][-num_overlap_frames:] = crossfaded
 
         if index > 0 and index - 1 in overlap_indexes:
             new_frames_arrays[index] = new_frames_arrays[index][num_overlap_frames:]
