@@ -32,7 +32,7 @@ Supported version
 
 | Stable Diffusion version | Support level                       |
 |--------------------------|-------------------------------------|
-| 1.7.0                    | Pending Test                        |
+| 1.7.0                    | Support v1.2                        |
 | 1.6.x                    | Support v1.2                        |
 | <1.6.0                   | Not Support, may encounter problems |
 
