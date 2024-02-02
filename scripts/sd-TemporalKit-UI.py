@@ -322,7 +322,7 @@ def post_process_ebsynth(input_folder, video, fps, per_side, output_resolution, 
                 os.listdir(os.path.join(input_folder, '0', "keys"))]
 
 
-def recombine_ebsynth(input_folder, fps, border_frames, batch):
+def recombine_ebsynth(input_folder, fps, border_frames, batch, progress=gr.Progress()):
     if os.path.exists(os.path.join(input_folder, "keys")):
         return ebsynth.crossfade_folder_of_folders(input_folder, fps=fps, return_generated_video_path=True)
     else:
@@ -335,12 +335,15 @@ def recombine_ebsynth(input_folder, fps, border_frames, batch):
         # use a list comprehension to filter the directories based on the pattern
         numeric_dirs = sorted([d for d in all_dirs if re.match(pattern, d)], key=lambda x: int(x))
 
-        for d in numeric_dirs:
-            folder_loc = os.path.join(input_folder, d)
-            # loop through each image file in the image folder
-            new_video = ebsynth.crossfade_folder_of_folders(folder_loc, fps=fps, return_generated_video_path=False)
-            # print(f"generated new video at location {new_video}")
-            generated_videos.append(new_video)
+        with tqdm(position=2, desc="Working dir", total=len(numeric_dirs), initial=1) as pbar:
+            for d in numeric_dirs:
+                folder_loc = os.path.join(input_folder, d)
+                # loop through each image file in the image folder
+                new_video = ebsynth.crossfade_folder_of_folders(folder_loc, fps=fps, return_generated_video_path=False)
+                # print(f"generated new video at location {new_video}")
+                generated_videos.append(new_video)
+                pbar.update(1)
+                progress(pbar.n / pbar.total, "Working dir...")
 
         overlap_data_path = os.path.join(input_folder, "transition_data.txt")
         with open(overlap_data_path, "r") as f:

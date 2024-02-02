@@ -193,30 +193,32 @@ def crossfade_folder_of_folders(output_folder, fps, return_generated_video_path=
         image1 = Image.open(image1_path)
         output_images.append(np.array(image1))
 
-    for i in range(len(dirs) - 1):
-        current_dir = os.path.join(root_folder, dirs[i])
-        next_dir = os.path.join(root_folder, dirs[i + 1])
+    with tqdm(total=len(dirs) - 1, position=0, desc="Crossfading") as pbar:
+        for i in range(len(dirs) - 1):
+            current_dir = os.path.join(root_folder, dirs[i])
+            next_dir = os.path.join(root_folder, dirs[i + 1])
 
-        images_current = sorted(os.listdir(current_dir))
-        images_next = sorted(os.listdir(next_dir))
+            images_current = sorted(os.listdir(current_dir))
+            images_next = sorted(os.listdir(next_dir))
 
-        startnum = get_num_at_index(current_dir, 0)
-        bigkeynum = allkeynums[i]
-        keynum = bigkeynum - startnum
-        print(f"recombining directory {dirs[i]} and {dirs[i + 1]}, len {keynum}")
+            startnum = get_num_at_index(current_dir, 0)
+            bigkeynum = allkeynums[i]
+            keynum = bigkeynum - startnum
+            tqdm.write(f"recombining directory {dirs[i]} and {dirs[i + 1]}, len {keynum}")
 
-        for j in range(keynum, len(images_current) - 1):
-            alpha = (j - keynum) / (len(images_current) - keynum)
-            image1_path = os.path.join(current_dir, images_current[j])
-            next_image_index = j - keynum if j - keynum < len(images_next) else len(images_next) - 1
-            image2_path = os.path.join(next_dir, images_next[next_image_index])
+            for j in range(keynum, len(images_current) - 1):
+                alpha = (j - keynum) / (len(images_current) - keynum)
+                image1_path = os.path.join(current_dir, images_current[j])
+                next_image_index = j - keynum if j - keynum < len(images_next) else len(images_next) - 1
+                image2_path = os.path.join(next_dir, images_next[next_image_index])
 
-            image1 = Image.open(image1_path)
-            image2 = Image.open(image2_path)
+                image1 = Image.open(image1_path)
+                image2 = Image.open(image2_path)
 
-            blended_image = butility.crossfade_images(image1, image2, alpha)
-            output_images.append(np.array(blended_image))
-            # blended_image.save(os.path.join(output_folder, f"{dirs[i]}_{dirs[i+1]}_crossfade_{j:04}.png"))
+                blended_image = butility.crossfade_images(image1, image2, alpha)
+                output_images.append(np.array(blended_image))
+                # blended_image.save(os.path.join(output_folder, f"{dirs[i]}_{dirs[i+1]}_crossfade_{j:04}.png"))
+            pbar.update(1)
 
     final_dir = os.path.join(root_folder, dirs[-1])
     final_dir_images = sorted(os.listdir(final_dir))

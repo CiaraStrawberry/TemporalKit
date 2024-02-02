@@ -595,8 +595,8 @@ def crossfade_videos(video_paths, fps, overlap_indexes, num_overlap_frames, outp
         if index > 0 and index - 1 in overlap_indexes:
             new_frames_arrays[index] = new_frames_arrays[index][num_overlap_frames:]
 
-    for arr in new_frames_arrays:
-        print(len(arr))
+    #for arr in new_frames_arrays:
+    # print(len(arr))
     # combined_arrays = np.concatenate(new_frames_arrays)
     output_array = []
     for arr in new_frames_arrays:
