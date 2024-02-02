@@ -30,11 +30,11 @@ https://user-images.githubusercontent.com/13116982/234425054-9a1bbf30-93a8-4f5b-
 Supported version
 ---
 
-| Stable Diffusion version | Support level                      |
-|--------------------------|------------------------------------|
-| 1.6.1                    | Pending Test                       |
-| 1.6.0                    | 1.1.0 (Pending Test)               |
-| <1.6.0                   | Not tested, may encounter problems |
+| Stable Diffusion version | Support level                       |
+|--------------------------|-------------------------------------|
+| 1.7.0                    | Pending Test                        |
+| 1.6.x                    | Support v1.2                        |
+| <1.6.0                   | Not Support, may encounter problems |
 
 ---
 
@@ -207,6 +207,9 @@ Look how smooth the video is. With some tweaking, you can probably make it bette
 
 Updates Log
 ---
+### 1.2
+- Add progress display on recombine ebsynth
+
 ### 1.1
 - fix UI is not displayed
 - fix problem with image sorting
