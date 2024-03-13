@@ -1,4 +1,4 @@
 ffmpeg-python
-moviepy
+moviepy==1.0.3
 imageio_ffmpeg
 scenedetect
