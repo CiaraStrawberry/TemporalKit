@@ -87,7 +87,7 @@ Written with reference to this [web page](https://stable-diffusion-art.com/video
 Open `Extensions` tab > `Install from URL` > Paste follow link in `URL for extension’s git repository` > Click `Install`
 
 ```
-https://github.com/CiaraStrawberry/TemporalKit
+https://github.com/cocomine/TemporalKit
 ```
 
 ### Step 2: Install FFMPEG
